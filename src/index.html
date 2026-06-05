@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>装修指挥官</title>
+<style>
+/* ========== CSS VARIABLES ========== */
+:root{
+  --blue:#2B7FD8;
+  --blue-dark:#1e6bc0;
+  --blue-light:rgba(43,127,216,0.06);
+  --yellow:#F4D758;
+  --yellow-dark:#e0c440;
+  --red:#E84A5F;
+  --green:#16a34a;
+  --cream:#fefcf6;
+  --cream-deep:#faf6eb;
+  --ink:#1A1A2E;
+  --ink-light:#4A4A5A;
+  --ink-faint:#888;
+  --card-bg:#fff;
+  --card-shadow:0 2px 12px rgba(0,0,0,0.04);
+  --card-shadow-hover:0 8px 24px rgba(0,0,0,0.08);
+  --border-light:rgba(26,26,26,0.06);
+  --border-medium:rgba(26,26,26,0.1);
+  --radius:12px;
+  --radius-sm:8px;
+  --radius-lg:16px;
+  --header-h:48px;
+  --sidebar-w:200px;
+  --sidebar-collapsed:60px;
+  --transition:all 0.18s ease;
+}
+
+/* ========== RESET & BASE ========== */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Noto Sans SC','PingFang SC','Helvetica Neue',sans-serif;background:var(--cream);color:var(--ink);font-size:14px;line-height:1.5}
+
+/* ========== APP LAYOUT ========== */
+.app-container{display:flex;height:100vh;width:100vw;overflow:hidden}
+
+/* ========== TOP BAR ========== */
+.app-header{position:fixed;top:0;left:0;right:0;height:var(--header-h);background:var(--cream);border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:1000}
+.app-header-left{display:flex;align-items:center;gap:10px}
+.app-logo{display:flex;align-items:center;gap:8px;font-family:'Noto Serif SC',serif;font-size:1.1rem;font-weight:700;color:var(--blue);cursor:pointer}
+.app-logo-icon{font-size:1.3rem}
+.app-project-name{font-size:0.9rem;color:var(--ink-light);font-weight:400;font-family:inherit;margin-left:4px}
+.app-project-name:hover{color:var(--blue)}
+.app-header-right{display:flex;align-items:center;gap:12px}
+
+/* User Switcher */
+.user-switcher{position:relative}
+.user-switcher-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border-medium);background:transparent;cursor:pointer;font-size:0.85rem;color:var(--ink);transition:var(--transition)}
+.user-switcher-btn:hover{border-color:var(--blue);background:var(--blue-light)}
+.user-avatar{font-size:1.1rem}
+.user-dropdown{position:absolute;top:calc(100% + 4px);right:0;background:var(--card-bg);border-radius:var(--radius-sm);box-shadow:var(--card-shadow-hover);border:1px solid var(--border-light);min-width:140px;display:none;z-index:1001;overflow:hidden}
+.user-dropdown.show{display:block}
+.user-option{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;transition:var(--transition);font-size:0.85rem}
+.user-option:hover{background:var(--blue-light)}
+.user-option.active{background:var(--blue);color:#fff}
+
+/* Save Status */
+.save-status{display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--ink-faint)}
+.save-status.saved{color:var(--green)}
+.save-status.saving{color:var(--yellow-dark)}
+.save-status.unsaved{color:var(--red)}
+
+/* Settings Button */
+.btn-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-sm);border:none;background:transparent;cursor:pointer;font-size:1rem;color:var(--ink-light);transition:var(--transition)}
+.btn-icon:hover{background:var(--blue-light);color:var(--blue)}
+
+/* ========== SIDEBAR ========== */
+.app-sidebar{position:fixed;top:var(--header-h);left:0;bottom:0;width:var(--sidebar-w);background:var(--cream);border-right:1px solid var(--border-light);padding:12px 0;overflow-y:auto;z-index:999;transition:width 0.25s ease}
+.app-sidebar::-webkit-scrollbar{width:4px}
+.app-sidebar::-webkit-scrollbar-thumb{background:var(--border-medium);border-radius:2px}
+
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;margin:2px 8px;border-radius:10px;font-size:0.9rem;color:var(--ink-light);cursor:pointer;transition:var(--transition);white-space:nowrap;overflow:hidden}
+.nav-item:hover{background:var(--blue-light);color:var(--ink)}
+.nav-item.active{background:var(--blue);color:#fff;font-weight:600}
+.nav-item .nav-icon{font-size:1.15rem;flex-shrink:0}
+.nav-item .nav-label{opacity:1;transition:opacity 0.2s}
+
+.nav-divider{height:1px;background:var(--border-light);margin:8px 16px}
+
+/* Collapsed sidebar */
+@media (max-width:900px){
+  .app-sidebar{width:var(--sidebar-collapsed)}
+  .nav-item{padding:10px;justify-content:center;margin:2px 4px}
+  .nav-item .nav-label{display:none}
+  .app-main{margin-left:var(--sidebar-collapsed)!important}
+}
+
+/* ========== MAIN CONTENT ========== */
+.app-main{margin-left:var(--sidebar-w);margin-top:var(--header-h);height:calc(100vh - var(--header-h));overflow-y:auto;overflow-x:hidden;transition:margin-left 0.25s ease}
+.app-main::-webkit-scrollbar{width:6px}
+.app-main::-webkit-scrollbar-track{background:transparent}
+.app-main::-webkit-scrollbar-thumb{background:var(--border-medium);border-radius:3px}
+
+.module-content{display:none;padding:24px;min-height:100%}
+.module-content.active{display:block}
+
+/* ========== MODULE HEADER ========== */
+.module-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.module-title{display:flex;align-items:center;gap:10px;font-family:'Noto Serif SC',serif;font-size:1.05rem;font-weight:700;color:var(--ink)}
+.module-title .module-icon{font-size:1.2rem}
+
+/* ========== BUTTONS ========== */
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 16px;border-radius:10px;border:none;font-size:0.85rem;font-weight:600;cursor:pointer;transition:var(--transition);font-family:inherit;white-space:nowrap}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{background:var(--blue-dark)}
+
+.btn-secondary{background:transparent;border:1.5px solid rgba(43,127,216,0.25);color:var(--blue)}
+.btn-secondary:hover{background:var(--blue-light)}
+
+.btn-danger{background:transparent;border:1.5px solid rgba(232,74,95,0.3);color:var(--red)}
+.btn-danger:hover{background:rgba(232,74,95,0.06)}
+
+.btn-sm{height:30px;padding:0 12px;font-size:0.8rem}
+
+/* ========== CARDS ========== */
+.app-card{background:var(--card-bg);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--card-shadow);transition:transform .2s,box-shadow .2s}
+.app-card:hover{transform:translateY(-2px);box-shadow:var(--card-shadow-hover)}
+
+/* ========== INPUTS ========== */
+.app-input{border:1.5px solid var(--border-medium);border-radius:var(--radius-sm);padding:10px 14px;font-size:0.9rem;transition:border-color .2s,box-shadow .2s;background:#fff;color:var(--ink);font-family:inherit;width:100%}
+.app-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(43,127,216,0.1)}
+.app-input::placeholder{color:var(--ink-faint)}
+
+.app-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer}
+
+.app-textarea{min-height:80px;resize:vertical;line-height:1.6}
+
+/* ========== TABLES ========== */
+.data-table{width:100%;border-collapse:separate;border-spacing:0;font-size:0.85rem}
+.data-table th{text-align:left;padding:12px 16px;font-weight:600;color:var(--ink-light);border-bottom:2px solid var(--border-light);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap}
+.data-table td{padding:14px 16px;border-bottom:1px solid rgba(0,0,0,0.04);color:var(--ink);vertical-align:middle}
+.data-table tr:hover td{background:var(--blue-light)}
+.data-table tr.editing td{background:rgba(244,215,88,0.08)}
+.data-table input.app-input{padding:6px 10px;font-size:0.85rem}
+
+/* ========== BADGES ========== */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.7rem;font-weight:500;white-space:nowrap}
+.badge-blue{background:rgba(43,127,216,0.1);color:var(--blue)}
+.badge-yellow{background:rgba(244,215,88,0.2);color:#9a8100}
+.badge-red{background:rgba(232,74,95,0.1);color:var(--red)}
+.badge-green{background:rgba(22,163,74,0.1);color:var(--green)}
+.badge-gray{background:rgba(0,0,0,0.05);color:var(--ink-faint)}
+
+/* ========== TOAST ========== */
+.toast-container{position:fixed;top:calc(var(--header-h) + 12px);right:16px;z-index:3000;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 18px;border-radius:var(--radius-sm);font-size:0.85rem;box-shadow:0 4px 16px rgba(0,0,0,0.1);animation:toastIn 0.3s ease;max-width:320px;word-break:break-word}
+.toast-success{background:#fff;border-left:4px solid var(--green);color:var(--ink)}
+.toast-warning{background:#fff;border-left:4px solid var(--yellow);color:var(--ink)}
+.toast-error{background:#fff;border-left:4px solid var(--red);color:var(--ink)}
+.toast-info{background:#fff;border-left:4px solid var(--blue);color:var(--ink)}
+@keyframes toastIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ========== MODAL ========== */
+.modal-overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal-content{background:var(--cream);border-radius:var(--radius-lg);padding:clamp(24px,3vw,40px);max-width:560px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.15)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-title{font-family:'Noto Serif SC',serif;font-size:1.1rem;font-weight:700;color:var(--ink)}
+.modal-close{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;cursor:pointer;font-size:1.2rem;color:var(--ink-faint);border-radius:var(--radius-sm);transition:var(--transition)}
+.modal-close:hover{background:var(--blue-light);color:var(--blue)}
+.modal-body{margin-bottom:20px}
+.modal-footer{display:flex;justify-content:flex-end;gap:10px}
+
+/* ========== EMPTY STATE ========== */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;color:var(--ink-faint)}
+.empty-state-icon{font-size:3rem;margin-bottom:16px;opacity:0.5}
+.empty-state-text{font-size:0.9rem;margin-bottom:16px}
+
+/* ========== FILTER BAR ========== */
+.filter-bar{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.filter-bar .app-input,.filter-bar .app-select{width:auto;min-width:120px}
+
+/* ========== GRID ========== */
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+@media (max-width:900px){.grid-4{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:600px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+/* ========== TABS ========== */
+.tab-bar{display:flex;gap:4px;border-bottom:2px solid var(--border-light);margin-bottom:20px}
+.tab{padding:10px 20px;border:none;background:transparent;cursor:pointer;font-size:0.9rem;color:var(--ink-light);border-bottom:2px solid transparent;margin-bottom:-2px;transition:var(--transition);font-family:inherit;white-space:nowrap}
+.tab:hover{color:var(--blue)}
+.tab.active{border-bottom-color:var(--blue);color:var(--blue);font-weight:600}
+
+/* ========== PROGRESS BAR ========== */
+.progress-bar{height:8px;background:var(--border-light);border-radius:4px;overflow:hidden}
+.progress-bar-fill{height:100%;background:var(--blue);border-radius:4px;transition:width 0.5s ease}
+.progress-bar-fill.warning{background:var(--yellow)}
+.progress-bar-fill.danger{background:var(--red)}
+.progress-bar-fill.success{background:var(--green)}
+
+/* ========== STAT CARD (Dashboard) ========== */
+.stat-card{background:var(--card-bg);border-radius:var(--radius);padding:20px;box-shadow:var(--card-shadow);text-align:center;transition:var(--transition)}
+.stat-card:hover{transform:translateY(-2px);box-shadow:var(--card-shadow-hover)}
+.stat-value{font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:var(--blue);line-height:1.2}
+.stat-value.warning{color:var(--yellow-dark)}
+.stat-value.danger{color:var(--red)}
+.stat-value.success{color:var(--green)}
+.stat-label{font-size:0.8rem;color:var(--ink-light);margin-top:6px}
+.stat-sublabel{font-size:0.75rem;color:var(--ink-faint);margin-top:2px}
+
+/* ========== ALERT BANNER ========== */
+.alert-banner{padding:12px 16px;border-radius:var(--radius-sm);margin-bottom:20px;display:flex;align-items:center;gap:10px;font-size:0.85rem}
+.alert-banner-warning{background:rgba(244,215,88,0.15);border:1px solid rgba(244,215,88,0.3);color:#9a8100}
+.alert-banner-danger{background:rgba(232,74,95,0.08);border:1px solid rgba(232,74,95,0.2);color:var(--red)}
+.alert-banner-success{background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.2);color:var(--green)}
+
+/* ========== PHASE CARD (Progress) ========== */
+.phase-card{background:var(--card-bg);border-radius:var(--radius);padding:16px;box-shadow:var(--card-shadow);border:2px solid transparent;transition:var(--transition);min-width:160px}
+.phase-card:hover{box-shadow:var(--card-shadow-hover)}
+.phase-card.active{border-color:var(--blue)}
+.phase-card.completed{border-color:var(--green)}
+.phase-card.lag{border-color:var(--red)}
+.phase-name{font-weight:600;font-size:0.9rem;margin-bottom:8px}
+.phase-status{font-size:0.78rem;margin-bottom:6px}
+.phase-dates{font-size:0.75rem;color:var(--ink-faint)}
+
+/* ========== PHOTO CARD ========== */
+.photo-card{background:var(--card-bg);border-radius:var(--radius);overflow:hidden;box-shadow:var(--card-shadow);transition:var(--transition);cursor:pointer}
+.photo-card:hover{transform:translateY(-2px);box-shadow:var(--card-shadow-hover)}
+.photo-card-img{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--cream-deep)}
+.photo-card-info{padding:10px 12px}
+.photo-card-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+
+/* ========== COMM CARD ========== */
+.comm-card{background:var(--card-bg);border-radius:var(--radius);padding:16px;box-shadow:var(--card-shadow);margin-bottom:12px;transition:var(--transition);cursor:pointer}
+.comm-card:hover{box-shadow:var(--card-shadow-hover)}
+.comm-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.comm-title{font-weight:600;font-size:0.9rem}
+.comm-meta{font-size:0.78rem;color:var(--ink-faint)}
+.comm-todos{display:flex;gap:6px;margin-top:8px}
+
+/* ========== KANBAN ========== */
+.kanban{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.kanban-col{background:var(--cream-deep);border-radius:var(--radius);padding:12px}
+.kanban-col-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--border-light)}
+.kanban-col-title{font-weight:600;font-size:0.85rem}
+.kanban-col-count{font-size:0.75rem;color:var(--ink-faint);background:var(--card-bg);padding:2px 8px;border-radius:10px}
+.kanban-item{background:var(--card-bg);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);cursor:pointer;transition:var(--transition)}
+.kanban-item:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.08)}
+.kanban-item.overdue{border-left:3px solid var(--red)}
+@media (max-width:900px){.kanban{grid-template-columns:1fr}}
+
+/* ========== PIE CHART (CSS) ========== */
+.pie-chart{width:120px;height:120px;border-radius:50%;position:relative;margin:0 auto}
+.pie-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.pie-value{font-size:1.4rem;font-weight:700;color:var(--ink)}
+.pie-label{font-size:0.7rem;color:var(--ink-faint)}
+
+/* ========== TIMELINE ========== */
+.timeline{display:flex;align-items:center;gap:8px;overflow-x:auto;padding-bottom:8px}
+.timeline-item{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.timeline-dot{width:12px;height:12px;border-radius:50%;background:var(--ink-faint);border:2px solid var(--border-light);flex-shrink:0}
+.timeline-dot.completed{background:var(--green);border-color:var(--green)}
+.timeline-dot.active{background:var(--blue);border-color:var(--blue);box-shadow:0 0 0 3px rgba(43,127,216,0.2)}
+.timeline-dot.lag{background:var(--red);border-color:var(--red)}
+.timeline-line{height:2px;width:40px;background:var(--border-light);flex-shrink:0}
+.timeline-line.completed{background:var(--green)}
+.timeline-line.active{background:var(--blue)}
+
+/* ========== BOARD MODULE (Whiteboard) ========== */
+#module-board{position:relative;padding:0!important;overflow:hidden}
+#module-board .module-header{position:absolute;top:0;left:0;right:0;padding:12px 16px;margin:0;z-index:100;background:rgba(254,252,246,0.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--border-light)}
+#module-board .board-container{position:absolute;top:48px;left:0;right:0;bottom:0}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width:600px){
+  .app-sidebar{display:none}
+  .app-main{margin-left:0!important}
+  .mobile-nav{position:fixed;bottom:0;left:0;right:0;height:56px;background:var(--cream);border-top:1px solid var(--border-light);display:flex;justify-content:space-around;align-items:center;z-index:1000}
+  .mobile-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px;font-size:0.7rem;color:var(--ink-light);cursor:pointer}
+  .mobile-nav-item.active{color:var(--blue);font-weight:600}
+  .mobile-nav-item .nav-icon{font-size:1.2rem}
+}
+@media (min-width:601px){.mobile-nav{display:none}}
+
+/* ========== ANIMATIONS ========== */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.module-content.active{animation:fadeIn 0.2s ease}
+
+/* ========== UTILITIES ========== */
+.flex{display:flex}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+.flex-center{display:flex;align-items:center;justify-content:center}
+.gap-8{gap:8px}
+.gap-12{gap:12px}
+.gap-16{gap:16px}
+.mb-12{margin-bottom:12px}
+.mb-16{margin-bottom:16px}
+.mb-20{margin-bottom:20px}
+.mt-12{margin-top:12px}
+.text-center{text-align:center}
+.text-sm{font-size:0.85rem}
+.text-xs{font-size:0.78rem}
+.text-faint{color:var(--ink-faint)}
+.w-full{width:100%}
+</style>
+</head>
+<body>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- MODAL OVERLAY -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-content" id="modalContent"></div>
+</div>
+
+<!-- APP CONTAINER -->
+<div class="app-container">
+
+  <!-- TOP BAR -->
+  <header class="app-header">
+    <div class="app-header-left">
+      <div class="app-logo" id="appLogo">
+        <span class="app-logo-icon">🏠</span>
+        <span>装修指挥官</span>
+        <span class="app-project-name" id="projectNameDisplay">— 我们的家</span>
+      </div>
+    </div>
+    <div class="app-header-right">
+      <div class="save-status saved" id="saveStatus">
+        <span id="saveIcon">🟢</span>
+        <span id="saveText">已保存</span>
+      </div>
+      <div class="user-switcher">
+        <button class="user-switcher-btn" id="userSwitcherBtn">
+          <span class="user-avatar" id="currentUserAvatar">👩</span>
+          <span id="currentUserName">你</span>
+          <span>▾</span>
+        </button>
+        <div class="user-dropdown" id="userDropdown"></div>
+      </div>
+      <button class="btn-icon" id="settingsBtn" title="设置">🔧</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="app-sidebar" id="appSidebar">
+    <div class="nav-item active" data-module="dashboard" id="nav-dashboard">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">总览</span>
+    </div>
+    <div class="nav-item" data-module="board" id="nav-board">
+      <span class="nav-icon">🎨</span>
+      <span class="nav-label">情绪板</span>
+    </div>
+    <div class="nav-item" data-module="documents" id="nav-documents">
+      <span class="nav-icon">📁</span>
+      <span class="nav-label">文档库</span>
+    </div>
+    <div class="nav-item" data-module="budget" id="nav-budget">
+      <span class="nav-icon">💰</span>
+      <span class="nav-label">预算</span>
+    </div>
+    <div class="nav-item" data-module="progress" id="nav-progress">
+      <span class="nav-icon">📅</span>
+      <span class="nav-label">进度</span>
+    </div>
+    <div class="nav-item" data-module="communications" id="nav-communications">
+      <span class="nav-icon">💬</span>
+      <span class="nav-label">沟通</span>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="app-main" id="appMain">
+
+    <!-- DASHBOARD MODULE -->
+    <div class="module-content active" id="module-dashboard">
+      <div class="module-header">
+        <div class="module-title"><span class="module-icon">📊</span>总览</div>
+        <button class="btn btn-primary btn-sm" id="btnGenerateReport">📄 生成本周周报</button>
+      </div>
+      <div id="dashboard-content"></div>
+    </div>
+
+    <!-- BOARD MODULE (Whiteboard) -->
+    <div class="module-content" id="module-board">
+      <div class="board-container" id="boardContainer"></div>
+    </div>
+
+    <!-- DOCUMENTS MODULE -->
+    <div class="module-content" id="module-documents">
+      <div class="module-header">
+        <div class="module-title"><span class="module-icon">📁</span>文档库</div>
+        <button class="btn btn-primary btn-sm" id="btnUploadDoc">+ 上传文件</button>
+      </div>
+      <div id="documents-content"></div>
+    </div>
+
+    <!-- BUDGET MODULE -->
+    <div class="module-content" id="module-budget">
+      <div class="module-header">
+        <div class="module-title"><span class="module-icon">💰</span>预算</div>
+        <button class="btn btn-primary btn-sm" id="btnAddBudgetItem">+ 新增项目</button>
+      </div>
+      <div id="budget-content"></div>
+    </div>
+
+    <!-- PROGRESS MODULE -->
+    <div class="module-content" id="module-progress">
+      <div class="module-header">
+        <div class="module-title"><span class="module-icon">📅</span>进度</div>
+      </div>
+      <div id="progress-content"></div>
+    </div>
+
+    <!-- COMMUNICATIONS MODULE -->
+    <div class="module-content" id="module-communications">
+      <div class="module-header">
+        <div class="module-title"><span class="module-icon">💬</span>沟通</div>
+        <button class="btn btn-primary btn-sm" id="btnAddComm">+ 新增记录</button>
+      </div>
+      <div id="communications-content"></div>
+    </div>
+
+  </main>
+
+  <!-- MOBILE NAV -->
+  <nav class="mobile-nav" id="mobileNav">
+    <div class="mobile-nav-item active" data-module="dashboard">
+      <span class="nav-icon">📊</span>
+      <span>总览</span>
+    </div>
+    <div class="mobile-nav-item" data-module="board">
+      <span class="nav-icon">🎨</span>
+      <span>情绪板</span>
+    </div>
+    <div class="mobile-nav-item" data-module="documents">
+      <span class="nav-icon">📁</span>
+      <span>文档</span>
+    </div>
+    <div class="mobile-nav-item" data-module="budget">
+      <span class="nav-icon">💰</span>
+      <span>预算</span>
+    </div>
+    <div class="mobile-nav-item" data-module="progress">
+      <span class="nav-icon">📅</span>
+      <span>进度</span>
+    </div>
+    <div class="mobile-nav-item" data-module="communications">
+      <span class="nav-icon">💬</span>
+      <span>沟通</span>
+    </div>
+  </nav>
+
+</div>
+
+<script>
+// ==================== CORE FRAMEWORK ====================
+
+// Module registry
+const MODULES = {};
+const moduleData = {};
+let currentModule = 'dashboard';
+let dirHandle = null;
+let saveTimer = null;
+let isSaving = false;
+
+// Default config
+const DEFAULT_CONFIG = {
+  projectName: '我们的家',
+  users: [
+    { id: 'user_1', name: '你', avatar: '👩' },
+    { id: 'user_2', name: '男朋友', avatar: '👨' }
+  ],
+  currentUserId: 'user_1',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  version: '1.0'
+};
+
+// Default data for all modules
+const DEFAULT_DATA = {
+  config: DEFAULT_CONFIG,
+  board: { version: '1.0', updatedAt: new Date().toISOString(), updatedBy: 'user_1', canvas: { scale: 1, panX: 0, panY: 0 }, cards: [], connections: [], drawStrokes: [], mindmapNodes: {} },
+  documents: { version: '1.0', updatedAt: new Date().toISOString(), documents: [], categories: ['合同', '报价单', '设计图', '收据', '其他'] },
+  budget: { version: '1.0', updatedAt: new Date().toISOString(), currency: 'CNY', totalBudget: 0, items: [], payments: [] },
+  progress: { version: '1.0', updatedAt: new Date().toISOString(), phases: [
+    { id: 'phase_1', name: '拆除', order: 1, plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', status: '未开始', progress: 0, note: '' },
+    { id: 'phase_2', name: '水电', order: 2, plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', status: '未开始', progress: 0, note: '' },
+    { id: 'phase_3', name: '泥瓦', order: 3, plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', status: '未开始', progress: 0, note: '' },
+    { id: 'phase_4', name: '木工', order: 4, plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', status: '未开始', progress: 0, note: '' },
+    { id: 'phase_5', name: '油漆', order: 5, plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', status: '未开始', progress: 0, note: '' },
+    { id: 'phase_6', name: '安装', order: 6, plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', status: '未开始', progress: 0, note: '' }
+  ], currentPhaseId: null },
+  communications: { version: '1.0', updatedAt: new Date().toISOString(), records: [] }
+};
+
+// App global object
+window.App = {
+  currentUser: DEFAULT_CONFIG.users[0],
+  users: DEFAULT_CONFIG.users,
+  config: DEFAULT_CONFIG,
+  currentModule: 'dashboard',
+  dirHandle: null,
+  saveState: 'saved',
+
+  switchUser(userId) {
+    const user = this.users.find(u => u.id === userId);
+    if (!user) return;
+    this.currentUser = user;
+    this.config.currentUserId = userId;
+    this.config.updatedAt = new Date().toISOString();
+    updateUserUI();
+    this.saveData();
+  },
+
+  switchModule(moduleId) {
+    if (moduleId === currentModule) return;
+    this.saveData();
+    document.querySelectorAll('.module-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.mobile-nav-item').forEach(el => el.classList.remove('active'));
+    const moduleEl = document.getElementById('module-' + moduleId);
+    if (moduleEl) moduleEl.classList.add('active');
+    const navEl = document.getElementById('nav-' + moduleId);
+    if (navEl) navEl.classList.add('active');
+    document.querySelectorAll('.mobile-nav-item[data-module="' + moduleId + '"]').forEach(el => el.classList.add('active'));
+    currentModule = moduleId;
+    this.currentModule = moduleId;
+    if (MODULES[moduleId] && MODULES[moduleId].onShow) MODULES[moduleId].onShow();
+    if (MODULES[currentModule] && MODULES[currentModule].onHide) MODULES[currentModule].onHide();
+  },
+
+  async saveData() {
+    if (!dirHandle || isSaving) return;
+    isSaving = true;
+    updateSaveStatus('saving');
+    try {
+      for (const [key, data] of Object.entries(moduleData)) {
+        if (!data) continue;
+        data.updatedAt = new Date().toISOString();
+        data.updatedBy = this.currentUser.id;
+        const fileName = key + '.json';
+        try {
+          const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(JSON.stringify(data, null, 2));
+          await writable.close();
+        } catch (e) {
+          console.warn('Failed to save ' + fileName, e);
+        }
+      }
+      updateSaveStatus('saved');
+    } catch (e) {
+      console.error('Save failed:', e);
+      updateSaveStatus('unsaved');
+    } finally {
+      isSaving = false;
+    }
+  },
+
+  scheduleSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    updateSaveStatus('unsaved');
+    saveTimer = setTimeout(() => this.saveData(), 2000);
+  },
+
+  async loadData() {
+    if (!dirHandle) return;
+    for (const key of Object.keys(DEFAULT_DATA)) {
+      try {
+        const fileHandle = await dirHandle.getFileHandle(key + '.json');
+        const file = await fileHandle.getFile();
+        const text = await file.text();
+        const data = JSON.parse(text);
+        moduleData[key] = data;
+        if (MODULES[key] && MODULES[key].setData) MODULES[key].setData(data);
+      } catch (e) {
+        moduleData[key] = JSON.parse(JSON.stringify(DEFAULT_DATA[key]));
+        if (MODULES[key] && MODULES[key].setData) MODULES[key].setData(moduleData[key]);
+      }
+    }
+    if (moduleData.config) {
+      this.config = moduleData.config;
+      this.users = this.config.users || DEFAULT_CONFIG.users;
+      const currentUser = this.users.find(u => u.id === this.config.currentUserId);
+      if (currentUser) this.currentUser = currentUser;
+      updateUserUI();
+      updateProjectName();
+    }
+  },
+
+  showToast(msg, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    toast.textContent = msg;
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100%)';
+      toast.style.transition = 'all 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  },
+
+  confirm(msg) {
+    return new Promise(resolve => {
+      const overlay = document.getElementById('modalOverlay');
+      const content = document.getElementById('modalContent');
+      content.innerHTML = `
+        <div class="modal-header">
+          <div class="modal-title">确认</div>
+          <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body">${msg}</div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal();window._confirmResult=false;">取消</button>
+          <button class="btn btn-primary" onclick="closeModal();window._confirmResult=true;">确认</button>
+        </div>
+      `;
+      overlay.classList.add('show');
+      window._confirmResult = null;
+      const check = setInterval(() => {
+        if (window._confirmResult !== null) {
+          clearInterval(check);
+          resolve(window._confirmResult);
+        }
+      }, 100);
+    });
+  },
+
+  getData(key) {
+    return moduleData[key] || JSON.parse(JSON.stringify(DEFAULT_DATA[key]));
+  },
+
+  setData(key, data) {
+    moduleData[key] = data;
+    this.scheduleSave();
+  }
+};
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+function updateSaveStatus(status) {
+  const el = document.getElementById('saveStatus');
+  const icon = document.getElementById('saveIcon');
+  const text = document.getElementById('saveText');
+  el.className = 'save-status ' + status;
+  App.saveState = status;
+  if (status === 'saved') { icon.textContent = '🟢'; text.textContent = '已保存'; }
+  else if (status === 'saving') { icon.textContent = '🟡'; text.textContent = '保存中...'; }
+  else { icon.textContent = '🔴'; text.textContent = '未保存'; }
+}
+
+function updateUserUI() {
+  document.getElementById('currentUserAvatar').textContent = App.currentUser.avatar;
+  document.getElementById('currentUserName').textContent = App.currentUser.name;
+  const dropdown = document.getElementById('userDropdown');
+  dropdown.innerHTML = App.users.map(u => `
+    <div class="user-option ${u.id === App.currentUser.id ? 'active' : ''}" data-user="${u.id}">
+      <span>${u.avatar}</span>
+      <span>${u.name}</span>
+    </div>
+  `).join('');
+  dropdown.querySelectorAll('.user-option').forEach(opt => {
+    opt.addEventListener('click', () => App.switchUser(opt.dataset.user));
+  });
+}
+
+function updateProjectName() {
+  const name = App.config.projectName || '我们的家';
+  document.getElementById('projectNameDisplay').textContent = '— ' + name;
+}
+
+document.getElementById('userSwitcherBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('userDropdown').classList.toggle('show');
+});
+document.addEventListener('click', () => {
+  document.getElementById('userDropdown').classList.remove('show');
+});
+
+document.querySelectorAll('.nav-item[data-module], .mobile-nav-item[data-module]').forEach(item => {
+  item.addEventListener('click', () => App.switchModule(item.dataset.module));
+});
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    App.saveData();
+  }
+});
+
+// ==================== FILE SYSTEM ACCESS API ====================
+
+async function initFileSystem() {
+  if (!('showDirectoryPicker' in window)) {
+    App.showToast('您的浏览器不支持 File System Access API，请使用 Chrome 或 Edge', 'error');
+    return false;
+  }
+  try {
+    const savedHandle = await getSavedDirectoryHandle();
+    if (savedHandle) {
+      const permission = await savedHandle.requestPermission({ mode: 'readwrite' });
+      if (permission === 'granted') {
+        dirHandle = savedHandle;
+        App.dirHandle = dirHandle;
+        await setupDirectory();
+        await App.loadData();
+        return true;
+      }
+    }
+  } catch (e) {
+    console.log('No saved directory');
+  }
+  showWelcomeModal();
+  return false;
+}
+
+function showWelcomeModal() {
+  const overlay = document.getElementById('modalOverlay');
+  const content = document.getElementById('modalContent');
+  content.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title">🏠 欢迎使用装修指挥官</div>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:16px">这是一个本地运行的装修管理工具。所有数据保存在您选择的文件夹中，可以通过云盘同步。</p>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">项目名称</label>
+        <input type="text" class="app-input" id="welcomeProjectName" value="我们的家" placeholder="例如：我们的家">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">用户 1</label>
+          <input type="text" class="app-input" id="welcomeUser1Name" value="你" placeholder="你的名字">
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">用户 2</label>
+          <input type="text" class="app-input" id="welcomeUser2Name" value="男朋友" placeholder="伴侣的名字">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="btnSelectFolder">📁 选择项目文件夹</button>
+    </div>
+  `;
+  overlay.classList.add('show');
+
+  document.getElementById('btnSelectFolder').addEventListener('click', async () => {
+    try {
+      const handle = await window.showDirectoryPicker();
+      dirHandle = handle;
+      App.dirHandle = dirHandle;
+      const projectName = document.getElementById('welcomeProjectName').value || '我们的家';
+      const user1Name = document.getElementById('welcomeUser1Name').value || '你';
+      const user2Name = document.getElementById('welcomeUser2Name').value || '男朋友';
+      DEFAULT_CONFIG.projectName = projectName;
+      DEFAULT_CONFIG.users[0].name = user1Name;
+      DEFAULT_CONFIG.users[1].name = user2Name;
+      await saveDirectoryHandle(handle);
+      await setupDirectory();
+      await App.loadData();
+      moduleData.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+      App.config = moduleData.config;
+      App.users = App.config.users;
+      App.currentUser = App.users[0];
+      updateUserUI();
+      updateProjectName();
+      await App.saveData();
+      closeModal();
+      App.showToast('项目初始化成功！', 'success');
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        App.showToast('选择文件夹失败: ' + e.message, 'error');
+      }
+    }
+  });
+}
+
+async function setupDirectory() {
+  if (!dirHandle) return;
+  const subdirs = ['files', 'photos', 'files/合同', 'files/报价单', 'files/设计图', 'files/收据'];
+  for (const subdir of subdirs) {
+    try {
+      const parts = subdir.split('/');
+      let current = dirHandle;
+      for (const part of parts) {
+        current = await current.getDirectoryHandle(part, { create: true });
+      }
+    } catch (e) {
+      console.warn('Failed to create directory:', subdir, e);
+    }
+  }
+}
+
+async function saveDirectoryHandle(handle) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('装修指挥官', 1);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles', { keyPath: 'id' });
+    };
+    request.onsuccess = (e) => {
+      const db = e.target.result;
+      const tx = db.transaction('handles', 'readwrite');
+      const store = tx.objectStore('handles');
+      store.put({ id: 'dir', handle });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function getSavedDirectoryHandle() {
+  return new Promise((resolve) => {
+    const request = indexedDB.open('装修指挥官', 1);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles', { keyPath: 'id' });
+    };
+    request.onsuccess = (e) => {
+      const db = e.target.result;
+      const tx = db.transaction('handles', 'readonly');
+      const store = tx.objectStore('handles');
+      const getReq = store.get('dir');
+      getReq.onsuccess = () => resolve(getReq.result ? getReq.result.handle : null);
+      getReq.onerror = () => resolve(null);
+    };
+    request.onerror = () => resolve(null);
+  });
+}
+
+// ==================== MODULE REGISTRATION ====================
+
+function registerModule(id, module) {
+  MODULES[id] = module;
+  if (module.init) module.init();
+}
+
+// ==================== SETTINGS ====================
+
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  const overlay = document.getElementById('modalOverlay');
+  const content = document.getElementById('modalContent');
+  content.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title">🔧 设置</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">项目名称</label>
+        <input type="text" class="app-input" id="settingProjectName" value="${App.config.projectName}">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">用户 1 名称</label>
+        <input type="text" class="app-input" id="settingUser1Name" value="${App.users[0].name}">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">用户 2 名称</label>
+        <input type="text" class="app-input" id="settingUser2Name" value="${App.users[1].name}">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">数据文件夹</label>
+        <div class="app-input" style="background:var(--cream-deep)">${dirHandle ? dirHandle.name : '未选择'}</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" id="btnSaveSettings">保存</button>
+    </div>
+  `;
+  overlay.classList.add('show');
+
+  document.getElementById('btnSaveSettings').addEventListener('click', () => {
+    App.config.projectName = document.getElementById('settingProjectName').value || '我们的家';
+    App.users[0].name = document.getElementById('settingUser1Name').value || '你';
+    App.users[1].name = document.getElementById('settingUser2Name').value || '男朋友';
+    updateUserUI();
+    updateProjectName();
+    App.setData('config', App.config);
+    closeModal();
+    App.showToast('设置已保存', 'success');
+  });
+});
+
+// ==================== INIT ====================
+
+window.addEventListener('DOMContentLoaded', () => {
+  updateUserUI();
+  initFileSystem();
+});
+
+// ==================== MODULE PLACEHOLDERS ====================
+</script>
+
+<!-- MODULE SCRIPTS WILL BE INSERTED HERE -->
+
+</body>
+</html>

@@ -122,6 +122,18 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
 
 .btn-sm{height:30px;padding:0 12px;font-size:0.8rem}
 
+/* ========== SETTINGS ========== */
+.settings-user-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--cream-deep);border-radius:var(--radius-sm);border:1.5px solid var(--border-light);transition:border-color .2s}
+.settings-user-row:hover{border-color:var(--border-medium)}
+.settings-user-avatar{flex-shrink:0}
+.settings-user-avatar select{width:52px;padding:4px 6px;font-size:1.2rem;text-align:center;cursor:pointer;border-radius:var(--radius-sm);border:1.5px solid var(--border-light);background:#fff}
+.settings-user-name{flex:1}
+.settings-user-name input{width:100%;padding:8px 10px;font-size:0.9rem}
+.settings-user-delete{flex-shrink:0;opacity:.6;transition:opacity .2s}
+.settings-user-delete:hover{opacity:1;color:var(--red)}
+.settings-user-delete:disabled{opacity:.2;cursor:not-allowed}
+.settings-user-delete:disabled:hover{color:var(--ink-light);background:transparent}
+
 /* ========== CARDS ========== */
 .app-card{background:var(--card-bg);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--card-shadow);transition:transform .2s,box-shadow .2s}
 .app-card:hover{transform:translateY(-2px);box-shadow:var(--card-shadow-hover)}
@@ -422,7 +434,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
       <div class="module-header">
         <div class="module-title"><span class="module-icon">📊</span>总览</div>
         <div style="display:flex;gap:8px">
-          <a href="./board.html" class="btn btn-secondary btn-sm" style="text-decoration:none" target="_blank">🎨 情绪板</a>
+          <a href="board.html" class="btn btn-secondary btn-sm" style="text-decoration:none" target="_blank">🎨 情绪板</a>
           <button class="btn btn-primary btn-sm" id="btnGenerateReport">📄 生成本周周报</button>
         </div>
       </div>
@@ -508,8 +520,8 @@ let currentModule = 'dashboard';
 const DEFAULT_CONFIG = {
   projectName: '我们的家',
   users: [
-    { id: 'user_1', name: '你', avatar: '👩' },
-    { id: 'user_2', name: '男朋友', avatar: '👨' }
+    { id: 'user_1', name: '我', avatar: '👩' },
+    { id: 'user_2', name: '伴侣', avatar: '👨' }
   ],
   currentUserId: 'user_1',
   createdAt: new Date().toISOString(),
@@ -642,6 +654,7 @@ window.App = {
     } else {
       moduleData.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
       this.config = moduleData.config;
+      this.users = this.config.users;
     }
     
     updateUserUI();
@@ -990,19 +1003,69 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
   const overlay = document.getElementById('modalOverlay');
   const content = document.getElementById('modalContent');
   const userName = App.currentUser?.profile?.name || App.currentUser?.email?.split('@')[0] || '用户';
+  
+  // 生成家庭成员列表HTML
+  const users = App.config.users || DEFAULT_CONFIG.users;
+  const currentOpId = App.config.currentUserId || 'user_1';
+  
+  function generateUserRows() {
+    return users.map((u, idx) => `
+      <div class="settings-user-row" data-user-id="${u.id}">
+        <div class="settings-user-avatar">
+          <select class="app-input settings-avatar-select" data-idx="${idx}">
+            ${['👩','👨','👧','👦','👵','👴','🧑','🧒','🐱','🐶','🌸','⭐','🏠','💼'].map(emoji => 
+              `<option value="${emoji}" ${u.avatar === emoji ? 'selected' : ''}>${emoji}</option>`
+            ).join('')}
+          </select>
+        </div>
+        <div class="settings-user-name">
+          <input type="text" class="app-input settings-name-input" data-idx="${idx}" value="${escapeHtml(u.name)}" placeholder="姓名">
+        </div>
+        <button class="btn btn-icon settings-user-delete" data-idx="${idx}" ${users.length <= 1 ? 'disabled' : ''} title="删除">
+          🗑️
+        </button>
+      </div>
+    `).join('');
+  }
+  
   content.innerHTML = `
     <div class="modal-header">
       <div class="modal-title">🔧 设置</div>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body">
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">项目名称</label>
-        <input type="text" class="app-input" id="settingProjectName" value="${App.currentProject?.name || App.config.projectName || '我们的家'}">
+      <!-- 项目名称 -->
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">小家名称</label>
+        <input type="text" class="app-input" id="settingProjectName" value="${App.currentProject?.name || App.config.projectName || '我们的家'}" placeholder="给我们的家起个名字">
       </div>
+      
+      <!-- 当前操作人 -->
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">当前操作人</label>
+        <select class="app-input" id="settingCurrentUser">
+          ${users.map(u => `<option value="${u.id}" ${u.id === currentOpId ? 'selected' : ''}>${u.avatar} ${escapeHtml(u.name)}</option>`).join('')}
+        </select>
+        <div style="font-size:0.75rem;color:var(--ink-light);margin-top:4px">切换后，新增的记录将标记为此人</div>
+      </div>
+      
+      <!-- 家庭成员管理 -->
       <div style="margin-bottom:16px">
-        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">当前用户</label>
-        <div class="app-input" style="background:var(--cream-deep)">${App.currentUser?.email || userName}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <label style="font-size:0.8rem;color:var(--ink-light);font-weight:600">家庭成员</label>
+          <button class="btn btn-secondary btn-sm" id="btnAddMember" style="font-size:0.8rem;padding:4px 10px">
+            + 添加成员
+          </button>
+        </div>
+        <div id="settingsUsersList" style="display:flex;flex-direction:column;gap:8px">
+          ${generateUserRows()}
+        </div>
+      </div>
+      
+      <!-- 登录账号信息 -->
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(26,26,26,0.06)">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">登录账号</label>
+        <div class="app-input" style="background:var(--cream-deep);font-size:0.85rem">${App.currentUser?.email || userName}</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1010,19 +1073,82 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
       <button class="btn btn-primary" id="btnSaveSettings">保存</button>
     </div>
   `;
+  
+  // 添加成员按钮事件
+  document.getElementById('btnAddMember').addEventListener('click', () => {
+    const newId = 'user_' + (Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+    users.push({ id: newId, name: '新成员', avatar: '🧑' });
+    refreshUserRows();
+  });
+  
+  // 刷新用户列表
+  function refreshUserRows() {
+    const container = document.getElementById('settingsUsersList');
+    container.innerHTML = generateUserRows();
+    bindUserRowEvents();
+    
+    // 更新当前操作人下拉框
+    const currentSelect = document.getElementById('settingCurrentUser');
+    const currentVal = currentSelect.value;
+    currentSelect.innerHTML = users.map(u => `<option value="${u.id}" ${u.id === currentVal ? 'selected' : ''}>${u.avatar} ${escapeHtml(u.name)}</option>`).join('');
+  }
+  
+  // 绑定用户行事件
+  function bindUserRowEvents() {
+    // 删除按钮
+    document.querySelectorAll('.settings-user-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        if (users.length > 1) {
+          users.splice(idx, 1);
+          refreshUserRows();
+        }
+      });
+    });
+  }
+  
+  bindUserRowEvents();
   overlay.classList.add('show');
 
   document.getElementById('btnSaveSettings').addEventListener('click', async () => {
+    // 收集用户数据
+    const nameInputs = document.querySelectorAll('.settings-name-input');
+    const avatarSelects = document.querySelectorAll('.settings-avatar-select');
+    
+    const newUsers = [];
+    nameInputs.forEach((input, idx) => {
+      const name = input.value.trim() || '未命名';
+      const avatar = avatarSelects[idx]?.value || '🧑';
+      const id = users[idx]?.id || ('user_' + Date.now().toString(36));
+      newUsers.push({ id, name, avatar });
+    });
+    
+    // 更新配置
+    App.config.users = newUsers;
+    App.users = newUsers;
+    App.config.currentUserId = document.getElementById('settingCurrentUser').value || newUsers[0]?.id;
+    
+    // 项目名称
     const newName = document.getElementById('settingProjectName').value || '我们的家';
     App.config.projectName = newName;
     if (App.currentProject) {
       await App.update('projects', App.currentProject.id, { name: newName });
       App.currentProject.name = newName;
     }
+    
     updateProjectName();
     App.setData('config', App.config);
     closeModal();
     App.showToast('设置已保存', 'success');
+    
+    // 刷新当前模块以应用新用户名称
+    const activeModule = document.querySelector('.module-content.active');
+    if (activeModule) {
+      const moduleId = activeModule.id.replace('module-', '');
+      if (MODULES[moduleId] && MODULES[moduleId].render) {
+        MODULES[moduleId].render();
+      }
+    }
   });
 });
 
@@ -1947,7 +2073,7 @@ window.addEventListener('DOMContentLoaded', () => {
         category: category,
         tags: [],
         uploadedAt: new Date().toISOString(),
-        uploadedBy: window.App.currentUser.id,
+        uploadedBy: getCurrentUser().id,
         size: file.size,
         note: ''
       };
@@ -2958,7 +3084,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const content = document.getElementById('modalContent');
     const today = new Date().toISOString().slice(0, 10);
     const itemOptions = data.items.map(it => `<option value="${it.id}">${escapeHtml(it.name)}</option>`).join('');
-    const userOptions = App.users.map(u => `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('');
+    const userOptions = App.users.map(u => `<option value="${u.id}" ${u.id === (App.config?.currentUserId || 'user_1') ? 'selected' : ''}>${escapeHtml(u.name)}</option>`).join('');
     const typeOptions = PAYMENT_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
     const methodOptions = METHODS.map(m => `<option value="${m}">${m}</option>`).join('');
 
@@ -3571,7 +3697,7 @@ window.addEventListener('DOMContentLoaded', () => {
           id: generateId('ph'),
           fileName: path,
           date,
-          takenBy: App.currentUser.id,
+          takenBy: getCurrentUser().id,
           tags: { phase: '', location: [], nature: '正常进度' },
           note: ''
         });
@@ -3826,7 +3952,10 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function getCurrentUser() {
-    return window.App ? App.currentUser : { id: 'user_1', name: '你', avatar: '👩' };
+    if (!window.App) return { id: 'user_1', name: '我', avatar: '👩' };
+    const users = App.config?.users || App.users || DEFAULT_CONFIG.users;
+    const currentId = App.config?.currentUserId || 'user_1';
+    return users.find(u => u.id === currentId) || users[0] || { id: 'user_1', name: '我', avatar: '👩' };
   }
 
   function formatDate(dateStr) {
@@ -3949,7 +4078,7 @@ window.addEventListener('DOMContentLoaded', () => {
       '已完成': filtered.filter(t => getTodoStatus(t) === '已完成').sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''))
     };
 
-    const users = window.App ? App.users : [{ id: 'user_1', name: '你' }, { id: 'user_2', name: '男朋友' }];
+    const users = window.App ? App.users : [{ id: 'user_1', name: '我' }, { id: 'user_2', name: '伴侣' }];
 
     container.innerHTML = `
       <div class="filter-bar" style="margin-bottom:16px">
@@ -4009,7 +4138,7 @@ window.addEventListener('DOMContentLoaded', () => {
     editingRecordId = recordId || null;
     const rec = recordId ? (data.records || []).find(r => r.id === recordId) : null;
     const isEdit = !!rec;
-    const users = window.App ? App.users : [{ id: 'user_1', name: '你', avatar: '👩' }, { id: 'user_2', name: '男朋友', avatar: '👨' }];
+    const users = window.App ? App.users : [{ id: 'user_1', name: '我', avatar: '👩' }, { id: 'user_2', name: '伴侣', avatar: '👨' }];
     const phases = getPhases();
 
     const overlay = document.getElementById('modalOverlay');
@@ -4114,7 +4243,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderTodoRow(index, todo) {
-    const users = window.App ? App.users : [{ id: 'user_1', name: '你' }, { id: 'user_2', name: '男朋友' }];
+    const users = window.App ? App.users : [{ id: 'user_1', name: '我' }, { id: 'user_2', name: '伴侣' }];
     const t = todo || {};
     return `
       <div style="margin-bottom:8px;padding:10px;border:1px solid var(--border-light);border-radius:var(--radius-sm);background:var(--cream)" data-todo-index="${index}">

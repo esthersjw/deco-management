@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>装修指挥官</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 /* ========== CSS VARIABLES ========== */
 :root{
@@ -303,6 +304,50 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
 </head>
 <body>
 
+<!-- AUTH OVERLAY -->
+<div id="authOverlay" style="display:none;position:fixed;inset:0;z-index:5000;background:var(--cream);align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--card-bg);border-radius:var(--radius-lg);padding:clamp(32px,4vw,48px);max-width:420px;width:100%;box-shadow:var(--card-shadow-hover)">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:2.5rem;margin-bottom:12px">🏠</div>
+      <h1 style="font-family:'Noto Serif SC',serif;font-size:1.3rem;color:var(--ink);margin-bottom:6px">装修指挥官</h1>
+      <p style="font-size:0.85rem;color:var(--ink-faint)">云端协作版</p>
+    </div>
+    <div id="loginForm">
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">邮箱</label>
+        <input type="email" class="app-input" id="loginEmail" placeholder="your@email.com">
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">密码</label>
+        <input type="password" class="app-input" id="loginPassword" placeholder="输入密码">
+      </div>
+      <button class="btn btn-primary w-full" id="btnLogin" style="justify-content:center;margin-bottom:12px;width:100%">登录</button>
+      <p style="text-align:center;font-size:0.85rem;color:var(--ink-faint)">
+        还没有账号？<a href="#" id="showRegister" style="color:var(--blue);text-decoration:none">立即注册</a>
+      </p>
+    </div>
+    <div id="registerForm" style="display:none">
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">邮箱</label>
+        <input type="email" class="app-input" id="registerEmail" placeholder="your@email.com">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">密码</label>
+        <input type="password" class="app-input" id="registerPassword" placeholder="至少6位密码">
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">确认密码</label>
+        <input type="password" class="app-input" id="registerConfirmPassword" placeholder="再次输入密码">
+      </div>
+      <button class="btn btn-primary w-full" id="btnRegister" style="justify-content:center;margin-bottom:12px;width:100%">注册</button>
+      <p style="text-align:center;font-size:0.85rem;color:var(--ink-faint)">
+        已有账号？<a href="#" id="showLogin" style="color:var(--blue);text-decoration:none">立即登录</a>
+      </p>
+    </div>
+    <div id="authError" style="display:none;margin-top:12px;padding:10px 14px;border-radius:var(--radius-sm);background:rgba(232,74,95,0.08);color:var(--red);font-size:0.85rem;text-align:center"></div>
+  </div>
+</div>
+
 <!-- TOAST CONTAINER -->
 <div class="toast-container" id="toastContainer"></div>
 
@@ -328,13 +373,18 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
         <span id="saveIcon">🟢</span>
         <span id="saveText">已保存</span>
       </div>
-      <div class="user-switcher">
+      <div class="user-switcher" id="userSwitcher" style="display:none">
         <button class="user-switcher-btn" id="userSwitcherBtn">
-          <span class="user-avatar" id="currentUserAvatar">👩</span>
-          <span id="currentUserName">你</span>
+          <span class="user-avatar" id="currentUserAvatar">👤</span>
+          <span id="currentUserName">用户</span>
           <span>▾</span>
         </button>
-        <div class="user-dropdown" id="userDropdown"></div>
+        <div class="user-dropdown" id="userDropdown">
+          <div class="user-option" id="userSignOutOption">
+            <span>🚪</span>
+            <span>退出登录</span>
+          </div>
+        </div>
       </div>
       <button class="btn-icon" id="settingsBtn" title="设置">🔧</button>
     </div>
@@ -443,15 +493,16 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
 </div>
 
 <script>
+// ==================== SUPABASE CONFIG ====================
+const SUPABASE_URL = 'https://morpcqavnwnzradgtnlv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vcnBjcWF2bnduenJhZGd0bmx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MTMwNjgsImV4cCI6MjA5NjI4OTA2OH0.KerqoGtG2csNBHPMRyRtY_diyeP6k1pM0FLBAYqJ5Fg';
+
 // ==================== CORE FRAMEWORK ====================
 
 // Module registry
 const MODULES = {};
 const moduleData = {};
 let currentModule = 'dashboard';
-let dirHandle = null;
-let saveTimer = null;
-let isSaving = false;
 
 // Default config
 const DEFAULT_CONFIG = {
@@ -484,26 +535,227 @@ const DEFAULT_DATA = {
 
 // App global object
 window.App = {
-  currentUser: DEFAULT_CONFIG.users[0],
+  supabase: null,
+  currentUser: null,
+  currentProject: null,
   users: DEFAULT_CONFIG.users,
   config: DEFAULT_CONFIG,
   currentModule: 'dashboard',
-  dirHandle: null,
   saveState: 'saved',
 
-  switchUser(userId) {
-    const user = this.users.find(u => u.id === userId);
-    if (!user) return;
-    this.currentUser = user;
-    this.config.currentUserId = userId;
-    this.config.updatedAt = new Date().toISOString();
+  // 初始化 Supabase
+  async initSupabase() {
+    this.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // 检查当前会话
+    const { data: { session } } = await this.supabase.auth.getSession();
+    if (session) {
+      this.currentUser = session.user;
+      await this.loadUserProfile();
+      await this.loadOrCreateProject();
+      this.hideAuth();
+      this.initRealtime();
+    } else {
+      this.showAuth();
+    }
+  },
+
+  // 登录
+  async signIn(email, password) {
+    const { data, error } = await this.supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    this.currentUser = data.user;
+    await this.loadUserProfile();
+    await this.loadOrCreateProject();
+    this.hideAuth();
+    this.initRealtime();
+    return data;
+  },
+
+  // 注册
+  async signUp(email, password) {
+    const { data, error } = await this.supabase.auth.signUp({ email, password });
+    if (error) throw error;
+    return data;
+  },
+
+  // 退出
+  async signOut() {
+    await this.supabase.auth.signOut();
+    this.currentUser = null;
+    this.currentProject = null;
+    this.showAuth();
+  },
+
+  // 加载用户资料
+  async loadUserProfile() {
+    const { data } = await this.supabase.from('profiles').select('*').eq('id', this.currentUser.id).single();
+    if (data) this.currentUser.profile = data;
+  },
+
+  // 加载或创建项目
+  async loadOrCreateProject() {
+    const { data: projects } = await this.supabase.from('projects').select('*').eq('owner_id', this.currentUser.id);
+    if (projects && projects.length > 0) {
+      this.currentProject = projects[0];
+    } else {
+      const { data: newProject } = await this.supabase.from('projects').insert({
+        name: '我的装修项目',
+        owner_id: this.currentUser.id
+      }).select().single();
+      this.currentProject = newProject;
+    }
+    updateProjectName();
+    await this.loadAllData();
+  },
+
+  // 从 Supabase 加载所有模块数据
+  async loadAllData() {
+    if (!this.currentProject) return;
+    
+    // Load module_data records
+    const { data: moduleRecords } = await this.supabase
+      .from('module_data')
+      .select('*')
+      .eq('project_id', this.currentProject.id);
+    
+    const recordMap = {};
+    (moduleRecords || []).forEach(r => {
+      recordMap[r.module_key] = r.data;
+    });
+    
+    // Fill moduleData
+    for (const key of Object.keys(DEFAULT_DATA)) {
+      if (recordMap[key]) {
+        moduleData[key] = recordMap[key];
+      } else {
+        moduleData[key] = JSON.parse(JSON.stringify(DEFAULT_DATA[key]));
+      }
+      if (MODULES[key] && MODULES[key].setData) {
+        MODULES[key].setData(moduleData[key]);
+      }
+    }
+    
+    // Config
+    if (recordMap.config) {
+      this.config = recordMap.config;
+      this.users = this.config.users || DEFAULT_CONFIG.users;
+    } else {
+      moduleData.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+      this.config = moduleData.config;
+    }
+    
     updateUserUI();
-    this.saveData();
+    updateProjectName();
+  },
+
+  // 保存模块数据到 Supabase
+  async syncModuleData(key, data) {
+    if (!this.currentProject || !this.supabase) return;
+    try {
+      await this.supabase.from('module_data').upsert({
+        project_id: this.currentProject.id,
+        module_key: key,
+        data: data,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'project_id,module_key' });
+    } catch (e) {
+      console.warn('Sync failed for ' + key, e);
+    }
+  },
+
+  // 初始化 Realtime 订阅
+  initRealtime() {
+    if (!this.currentProject) return;
+    this.supabase.channel('module_data')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'module_data', 
+        filter: `project_id=eq.${this.currentProject.id}` 
+      }, payload => {
+        this.handleRealtimeChange(payload);
+      })
+      .subscribe();
+  },
+
+  handleRealtimeChange(payload) {
+    const key = payload.new?.module_key || payload.old?.module_key;
+    if (!key) return;
+    // Reload data and refresh UI
+    this.loadAllData().then(() => {
+      const moduleMap = {
+        'documents': 'documents',
+        'budget': 'budget',
+        'progress': 'progress',
+        'communications': 'communications'
+      };
+      const moduleId = moduleMap[key];
+      if (moduleId && MODULES[moduleId] && MODULES[moduleId].render) {
+        MODULES[moduleId].render();
+      }
+    });
+    this.showToast('数据已同步', 'info');
+  },
+
+  // 通用数据操作方法
+  async query(table, options = {}) {
+    if (!this.currentProject) return { data: [], error: null };
+    let q = this.supabase.from(table).select(options.select || '*').eq('project_id', this.currentProject.id);
+    if (options.order) q = q.order(options.order.column, { ascending: options.order.ascending });
+    if (options.limit) q = q.limit(options.limit);
+    const { data, error } = await q;
+    return { data: data || [], error };
+  },
+
+  async insert(table, record) {
+    if (!this.currentProject) return { data: null, error: new Error('No project') };
+    record.project_id = this.currentProject.id;
+    record.created_by = this.currentUser.id;
+    const { data, error } = await this.supabase.from(table).insert(record).select().single();
+    return { data, error };
+  },
+
+  async update(table, id, record) {
+    const { data, error } = await this.supabase.from(table).update(record).eq('id', id).select().single();
+    return { data, error };
+  },
+
+  async delete(table, id) {
+    const { error } = await this.supabase.from(table).delete().eq('id', id);
+    return { error };
+  },
+
+  // 文件上传到 Storage
+  async uploadFile(bucket, filePath, file) {
+    const { data, error } = await this.supabase.storage.from(bucket).upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+    if (error) return { error };
+    const { data: { publicUrl } } = this.supabase.storage.from(bucket).getPublicUrl(data.path);
+    return { url: publicUrl, error: null };
+  },
+
+  showAuth() {
+    const overlay = document.getElementById('authOverlay');
+    if (overlay) overlay.style.display = 'flex';
+    const appContainer = document.querySelector('.app-container');
+    if (appContainer) appContainer.style.display = 'none';
+    const userSwitcher = document.getElementById('userSwitcher');
+    if (userSwitcher) userSwitcher.style.display = 'none';
+  },
+
+  hideAuth() {
+    const overlay = document.getElementById('authOverlay');
+    if (overlay) overlay.style.display = 'none';
+    const appContainer = document.querySelector('.app-container');
+    if (appContainer) appContainer.style.display = 'block';
+    const userSwitcher = document.getElementById('userSwitcher');
+    if (userSwitcher) userSwitcher.style.display = 'block';
   },
 
   switchModule(moduleId) {
     if (moduleId === currentModule) return;
-    this.saveData();
     const prevModule = currentModule;
     document.querySelectorAll('.module-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -520,62 +772,16 @@ window.App = {
   },
 
   async saveData() {
-    if (!dirHandle || isSaving) return;
-    isSaving = true;
-    updateSaveStatus('saving');
-    try {
-      for (const [key, data] of Object.entries(moduleData)) {
-        if (!data) continue;
-        data.updatedAt = new Date().toISOString();
-        data.updatedBy = this.currentUser.id;
-        const fileName = key + '.json';
-        try {
-          const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-          const writable = await fileHandle.createWritable();
-          await writable.write(JSON.stringify(data, null, 2));
-          await writable.close();
-        } catch (e) {
-          console.warn('Failed to save ' + fileName, e);
-        }
-      }
-      updateSaveStatus('saved');
-    } catch (e) {
-      console.error('Save failed:', e);
-      updateSaveStatus('unsaved');
-    } finally {
-      isSaving = false;
-    }
+    // Cloud sync: data saved per-operation via setData
+    updateSaveStatus('saved');
   },
 
   scheduleSave() {
-    if (saveTimer) clearTimeout(saveTimer);
-    updateSaveStatus('unsaved');
-    saveTimer = setTimeout(() => this.saveData(), 2000);
+    // Cloud sync: no local timer needed
   },
 
   async loadData() {
-    if (!dirHandle) return;
-    for (const key of Object.keys(DEFAULT_DATA)) {
-      try {
-        const fileHandle = await dirHandle.getFileHandle(key + '.json');
-        const file = await fileHandle.getFile();
-        const text = await file.text();
-        const data = JSON.parse(text);
-        moduleData[key] = data;
-        if (MODULES[key] && MODULES[key].setData) MODULES[key].setData(data);
-      } catch (e) {
-        moduleData[key] = JSON.parse(JSON.stringify(DEFAULT_DATA[key]));
-        if (MODULES[key] && MODULES[key].setData) MODULES[key].setData(moduleData[key]);
-      }
-    }
-    if (moduleData.config) {
-      this.config = moduleData.config;
-      this.users = this.config.users || DEFAULT_CONFIG.users;
-      const currentUser = this.users.find(u => u.id === this.config.currentUserId);
-      if (currentUser) this.currentUser = currentUser;
-      updateUserUI();
-      updateProjectName();
-    }
+    // Data loaded via loadAllData
   },
 
   showToast(msg, type = 'info') {
@@ -624,7 +830,7 @@ window.App = {
 
   setData(key, data) {
     moduleData[key] = data;
-    this.scheduleSave();
+    this.syncModuleData(key, data);
   }
 };
 
@@ -638,29 +844,109 @@ function updateSaveStatus(status) {
   const text = document.getElementById('saveText');
   el.className = 'save-status ' + status;
   App.saveState = status;
-  if (status === 'saved') { icon.textContent = '🟢'; text.textContent = '已保存'; }
-  else if (status === 'saving') { icon.textContent = '🟡'; text.textContent = '保存中...'; }
-  else { icon.textContent = '🔴'; text.textContent = '未保存'; }
+  if (status === 'saved') { icon.textContent = '☁️'; text.textContent = '已同步'; }
+  else if (status === 'saving') { icon.textContent = '🟡'; text.textContent = '同步中...'; }
+  else { icon.textContent = '🔴'; text.textContent = '未同步'; }
 }
 
 function updateUserUI() {
-  document.getElementById('currentUserAvatar').textContent = App.currentUser.avatar;
-  document.getElementById('currentUserName').textContent = App.currentUser.name;
-  const dropdown = document.getElementById('userDropdown');
-  dropdown.innerHTML = App.users.map(u => `
-    <div class="user-option ${u.id === App.currentUser.id ? 'active' : ''}" data-user="${u.id}">
-      <span>${u.avatar}</span>
-      <span>${u.name}</span>
-    </div>
-  `).join('');
-  dropdown.querySelectorAll('.user-option').forEach(opt => {
-    opt.addEventListener('click', () => App.switchUser(opt.dataset.user));
-  });
+  const userSwitcher = document.getElementById('userSwitcher');
+  if (!App.currentUser) {
+    if (userSwitcher) userSwitcher.style.display = 'none';
+    return;
+  }
+  if (userSwitcher) userSwitcher.style.display = 'block';
+  
+  const avatar = App.currentUser.profile?.avatar || '👤';
+  const name = App.currentUser.profile?.name || App.currentUser.email?.split('@')[0] || '用户';
+  document.getElementById('currentUserAvatar').textContent = avatar;
+  document.getElementById('currentUserName').textContent = name;
 }
 
 function updateProjectName() {
-  const name = App.config.projectName || '我们的家';
+  const name = App.currentProject?.name || App.config?.projectName || '我们的家';
   document.getElementById('projectNameDisplay').textContent = '— ' + name;
+}
+
+// Auth overlay event bindings
+function initAuthEvents() {
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  const authError = document.getElementById('authError');
+  
+  function showError(msg) {
+    authError.textContent = msg;
+    authError.style.display = 'block';
+  }
+  
+  function clearError() {
+    authError.style.display = 'none';
+    authError.textContent = '';
+  }
+  
+  document.getElementById('showRegister').addEventListener('click', (e) => {
+    e.preventDefault();
+    clearError();
+    loginForm.style.display = 'none';
+    registerForm.style.display = 'block';
+  });
+  
+  document.getElementById('showLogin').addEventListener('click', (e) => {
+    e.preventDefault();
+    clearError();
+    registerForm.style.display = 'none';
+    loginForm.style.display = 'block';
+  });
+  
+  document.getElementById('btnLogin').addEventListener('click', async () => {
+    clearError();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) {
+      showError('请填写邮箱和密码');
+      return;
+    }
+    try {
+      await App.signIn(email, password);
+      App.showToast('登录成功', 'success');
+    } catch (e) {
+      showError(e.message || '登录失败');
+    }
+  });
+  
+  document.getElementById('btnRegister').addEventListener('click', async () => {
+    clearError();
+    const email = document.getElementById('registerEmail').value.trim();
+    const password = document.getElementById('registerPassword').value;
+    const confirm = document.getElementById('registerConfirmPassword').value;
+    if (!email || !password) {
+      showError('请填写邮箱和密码');
+      return;
+    }
+    if (password.length < 6) {
+      showError('密码至少6位');
+      return;
+    }
+    if (password !== confirm) {
+      showError('两次输入的密码不一致');
+      return;
+    }
+    try {
+      await App.signUp(email, password);
+      showError('注册成功！请查收邮件确认后登录');
+      registerForm.style.display = 'none';
+      loginForm.style.display = 'block';
+    } catch (e) {
+      showError(e.message || '注册失败');
+    }
+  });
+  
+  // Sign out
+  document.getElementById('userSignOutOption').addEventListener('click', async () => {
+    document.getElementById('userDropdown').classList.remove('show');
+    await App.signOut();
+    App.showToast('已退出登录', 'info');
+  });
 }
 
 document.getElementById('userSwitcherBtn').addEventListener('click', (e) => {
@@ -682,147 +968,6 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// ==================== FILE SYSTEM ACCESS API ====================
-
-async function initFileSystem() {
-  if (!('showDirectoryPicker' in window)) {
-    App.showToast('您的浏览器不支持 File System Access API，请使用 Chrome 或 Edge', 'error');
-    return false;
-  }
-  try {
-    const savedHandle = await getSavedDirectoryHandle();
-    if (savedHandle) {
-      const permission = await savedHandle.requestPermission({ mode: 'readwrite' });
-      if (permission === 'granted') {
-        dirHandle = savedHandle;
-        App.dirHandle = dirHandle;
-        await setupDirectory();
-        await App.loadData();
-        return true;
-      }
-    }
-  } catch (e) {
-    console.log('No saved directory');
-  }
-  showWelcomeModal();
-  return false;
-}
-
-function showWelcomeModal() {
-  const overlay = document.getElementById('modalOverlay');
-  const content = document.getElementById('modalContent');
-  content.innerHTML = `
-    <div class="modal-header">
-      <div class="modal-title">🏠 欢迎使用装修指挥官</div>
-    </div>
-    <div class="modal-body">
-      <p style="margin-bottom:16px">这是一个本地运行的装修管理工具。所有数据保存在您选择的文件夹中，可以通过云盘同步。</p>
-      <div style="margin-bottom:12px">
-        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">项目名称</label>
-        <input type="text" class="app-input" id="welcomeProjectName" value="我们的家" placeholder="例如：我们的家">
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div>
-          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">用户 1</label>
-          <input type="text" class="app-input" id="welcomeUser1Name" value="你" placeholder="你的名字">
-        </div>
-        <div>
-          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">用户 2</label>
-          <input type="text" class="app-input" id="welcomeUser2Name" value="男朋友" placeholder="伴侣的名字">
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-primary" id="btnSelectFolder">📁 选择项目文件夹</button>
-    </div>
-  `;
-  overlay.classList.add('show');
-
-  document.getElementById('btnSelectFolder').addEventListener('click', async () => {
-    try {
-      const handle = await window.showDirectoryPicker();
-      dirHandle = handle;
-      App.dirHandle = dirHandle;
-      const projectName = document.getElementById('welcomeProjectName').value || '我们的家';
-      const user1Name = document.getElementById('welcomeUser1Name').value || '你';
-      const user2Name = document.getElementById('welcomeUser2Name').value || '男朋友';
-      DEFAULT_CONFIG.projectName = projectName;
-      DEFAULT_CONFIG.users[0].name = user1Name;
-      DEFAULT_CONFIG.users[1].name = user2Name;
-      await saveDirectoryHandle(handle);
-      await setupDirectory();
-      await App.loadData();
-      moduleData.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-      App.config = moduleData.config;
-      App.users = App.config.users;
-      App.currentUser = App.users[0];
-      updateUserUI();
-      updateProjectName();
-      await App.saveData();
-      closeModal();
-      App.showToast('项目初始化成功！', 'success');
-    } catch (e) {
-      if (e.name !== 'AbortError') {
-        App.showToast('选择文件夹失败: ' + e.message, 'error');
-      }
-    }
-  });
-}
-
-async function setupDirectory() {
-  if (!dirHandle) return;
-  const subdirs = ['files', 'photos', 'files/合同', 'files/报价单', 'files/设计图', 'files/收据'];
-  for (const subdir of subdirs) {
-    try {
-      const parts = subdir.split('/');
-      let current = dirHandle;
-      for (const part of parts) {
-        current = await current.getDirectoryHandle(part, { create: true });
-      }
-    } catch (e) {
-      console.warn('Failed to create directory:', subdir, e);
-    }
-  }
-}
-
-async function saveDirectoryHandle(handle) {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('装修指挥官', 1);
-    request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles', { keyPath: 'id' });
-    };
-    request.onsuccess = (e) => {
-      const db = e.target.result;
-      const tx = db.transaction('handles', 'readwrite');
-      const store = tx.objectStore('handles');
-      store.put({ id: 'dir', handle });
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    };
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function getSavedDirectoryHandle() {
-  return new Promise((resolve) => {
-    const request = indexedDB.open('装修指挥官', 1);
-    request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles', { keyPath: 'id' });
-    };
-    request.onsuccess = (e) => {
-      const db = e.target.result;
-      const tx = db.transaction('handles', 'readonly');
-      const store = tx.objectStore('handles');
-      const getReq = store.get('dir');
-      getReq.onsuccess = () => resolve(getReq.result ? getReq.result.handle : null);
-      getReq.onerror = () => resolve(null);
-    };
-    request.onerror = () => resolve(null);
-  });
-}
-
 // ==================== MODULE REGISTRATION ====================
 
 function registerModule(id, module) {
@@ -835,6 +980,7 @@ function registerModule(id, module) {
 document.getElementById('settingsBtn').addEventListener('click', () => {
   const overlay = document.getElementById('modalOverlay');
   const content = document.getElementById('modalContent');
+  const userName = App.currentUser?.profile?.name || App.currentUser?.email?.split('@')[0] || '用户';
   content.innerHTML = `
     <div class="modal-header">
       <div class="modal-title">🔧 设置</div>
@@ -843,19 +989,11 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
     <div class="modal-body">
       <div style="margin-bottom:16px">
         <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">项目名称</label>
-        <input type="text" class="app-input" id="settingProjectName" value="${App.config.projectName}">
+        <input type="text" class="app-input" id="settingProjectName" value="${App.currentProject?.name || App.config.projectName || '我们的家'}">
       </div>
       <div style="margin-bottom:16px">
-        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">用户 1 名称</label>
-        <input type="text" class="app-input" id="settingUser1Name" value="${App.users[0].name}">
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">用户 2 名称</label>
-        <input type="text" class="app-input" id="settingUser2Name" value="${App.users[1].name}">
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">数据文件夹</label>
-        <div class="app-input" style="background:var(--cream-deep)">${dirHandle ? dirHandle.name : '未选择'}</div>
+        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">当前用户</label>
+        <div class="app-input" style="background:var(--cream-deep)">${App.currentUser?.email || userName}</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -865,11 +1003,13 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
   `;
   overlay.classList.add('show');
 
-  document.getElementById('btnSaveSettings').addEventListener('click', () => {
-    App.config.projectName = document.getElementById('settingProjectName').value || '我们的家';
-    App.users[0].name = document.getElementById('settingUser1Name').value || '你';
-    App.users[1].name = document.getElementById('settingUser2Name').value || '男朋友';
-    updateUserUI();
+  document.getElementById('btnSaveSettings').addEventListener('click', async () => {
+    const newName = document.getElementById('settingProjectName').value || '我们的家';
+    App.config.projectName = newName;
+    if (App.currentProject) {
+      await App.update('projects', App.currentProject.id, { name: newName });
+      App.currentProject.name = newName;
+    }
     updateProjectName();
     App.setData('config', App.config);
     closeModal();
@@ -880,8 +1020,8 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
 // ==================== INIT ====================
 
 window.addEventListener('DOMContentLoaded', () => {
-  updateUserUI();
-  initFileSystem();
+  initAuthEvents();
+  App.initSupabase();
 });
 
 // ==================== MODULE PLACEHOLDERS ====================
@@ -1716,48 +1856,30 @@ window.addEventListener('DOMContentLoaded', () => {
     return (type || '').toLowerCase() === 'pdf';
   }
 
-  // ========== FILE SYSTEM ==========
+  // ========== FILE STORAGE (Supabase) ==========
 
-  async function saveFileToDisk(file, category, fileName) {
-    const dirHandle = window.App.dirHandle;
-    if (!dirHandle) {
-      window.App.showToast('未选择项目文件夹，无法保存文件', 'error');
-      return false;
+  async function saveFileToStorage(file, category, fileName) {
+    if (!window.App.currentProject) {
+      window.App.showToast('未登录，无法保存文件', 'error');
+      return null;
     }
     try {
-      const filesDir = await dirHandle.getDirectoryHandle('files', { create: true });
-      const catDir = await filesDir.getDirectoryHandle(category, { create: true });
-      const fileHandle = await catDir.getFileHandle(fileName, { create: true });
-      const writable = await fileHandle.createWritable();
-      await writable.write(file);
-      await writable.close();
-      return true;
+      const ext = fileName.split('.').pop();
+      const safePath = `projects/${window.App.currentProject.id}/documents/${category}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const result = await window.App.uploadFile('documents', safePath, file);
+      if (result.error) throw result.error;
+      return result.url;
     } catch (e) {
-      console.error('Save file failed:', e);
-      window.App.showToast('文件保存失败: ' + e.message, 'error');
-      return false;
+      console.error('Upload file failed:', e);
+      window.App.showToast('文件上传失败: ' + e.message, 'error');
+      return null;
     }
   }
 
-  async function getFileFromDisk(fileName) {
-    const dirHandle = window.App.dirHandle;
-    if (!dirHandle) return null;
-    try {
-      const parts = fileName.split('/');
-      let current = dirHandle;
-      for (let i = 0; i < parts.length; i++) {
-        if (i === parts.length - 1) {
-          const fileHandle = await current.getFileHandle(parts[i]);
-          return await fileHandle.getFile();
-        } else {
-          current = await current.getDirectoryHandle(parts[i]);
-        }
-      }
-      return null;
-    } catch (e) {
-      console.error('Read file failed:', e);
-      return null;
-    }
+  async function getFileUrl(fileName) {
+    // fileName is now a full URL
+    if (fileName && fileName.startsWith('http')) return fileName;
+    return null;
   }
 
   // ========== UPLOAD ==========
@@ -1802,15 +1924,14 @@ window.addEventListener('DOMContentLoaded', () => {
 
       const category = data.categories[0]; // 默认第一个分类
       const safeName = file.name.replace(/[^\w\u4e00-\u9fa5.\-]/g, '_');
-      const fileName = category + '/' + safeName;
 
-      const saved = await saveFileToDisk(file, category, safeName);
-      if (!saved) continue;
+      const fileUrl = await saveFileToStorage(file, category, safeName);
+      if (!fileUrl) continue;
 
       const doc = {
         id: generateId(),
         name: file.name.replace(/\.[^.]+$/, ''),
-        fileName: fileName,
+        fileName: fileUrl,
         type: ext,
         category: category,
         tags: [],
@@ -2023,12 +2144,17 @@ window.addEventListener('DOMContentLoaded', () => {
     const overlay = document.getElementById('modalOverlay');
     const content = document.getElementById('modalContent');
 
+    const fileUrl = await getFileUrl(doc.fileName);
     let previewHtml = '';
 
     if (isPdfType(doc.type)) {
-      previewHtml = `<div style="text-align:center;color:var(--ink-faint);padding:40px">正在加载预览...</div>`;
+      previewHtml = fileUrl 
+        ? `<embed src="${fileUrl}" type="application/pdf" width="100%" height="500px" style="border-radius:8px">`
+        : `<div style="text-align:center;color:var(--ink-faint);padding:40px">无法加载 PDF 预览</div>`;
     } else if (isImageType(doc.type)) {
-      previewHtml = `<div style="text-align:center;padding:20px">正在加载图片...</div>`;
+      previewHtml = fileUrl
+        ? `<img src="${fileUrl}" style="max-width:100%;border-radius:8px;display:block;margin:0 auto" alt="${escapeHtml(doc.name)}">`
+        : `<div style="text-align:center;padding:20px;color:var(--ink-faint)">无法加载图片</div>`;
     } else {
       previewHtml = `
         <div class="empty-state" style="padding:40px">
@@ -2054,34 +2180,20 @@ window.addEventListener('DOMContentLoaded', () => {
     `;
     overlay.classList.add('show');
 
-    // Load actual content
-    const file = await getFileFromDisk(doc.fileName);
-    const body = document.getElementById('previewBody');
-
-    if (file) {
-      const url = URL.createObjectURL(file);
-      if (isPdfType(doc.type)) {
-        if (body) body.innerHTML = `<embed src="${url}" type="application/pdf" width="100%" height="500px" style="border-radius:8px">`;
-      } else if (isImageType(doc.type)) {
-        if (body) body.innerHTML = `<img src="${url}" style="max-width:100%;border-radius:8px;display:block;margin:0 auto" alt="${escapeHtml(doc.name)}">`;
+    // Bind download buttons
+    const bindDownload = (btn) => {
+      if (btn && fileUrl) {
+        btn.addEventListener('click', () => {
+          const a = document.createElement('a');
+          a.href = fileUrl;
+          a.download = doc.name + '.' + doc.type;
+          a.target = '_blank';
+          a.click();
+        });
       }
-
-      // Bind download buttons
-      const bindDownload = (btn) => {
-        if (btn) {
-          btn.addEventListener('click', () => {
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = doc.fileName.split('/').pop();
-            a.click();
-          });
-        }
-      };
-      bindDownload(document.getElementById('previewDownloadBtn'));
-      bindDownload(document.getElementById('previewDownloadBtn2'));
-    } else {
-      if (body) body.innerHTML = `<div class="empty-state" style="padding:40px"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">文件读取失败，可能已被移动或删除</div></div>`;
-    }
+    };
+    bindDownload(document.getElementById('previewDownloadBtn'));
+    bindDownload(document.getElementById('previewDownloadBtn2'));
   }
 
   // ========== EDIT ==========
@@ -2194,42 +2306,8 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // If category changed, we should move the file
-      const oldCategory = doc.category;
-      const newFileName = newCategory + '/' + doc.fileName.split('/').pop();
-
-      if (oldCategory !== newCategory && window.App.dirHandle) {
-        // Move file in disk
-        try {
-          const file = await getFileFromDisk(doc.fileName);
-          if (file) {
-            const saved = await saveFileToDisk(file, newCategory, doc.fileName.split('/').pop());
-            if (saved) {
-              // Delete old file
-              try {
-                const parts = doc.fileName.split('/');
-                let current = window.App.dirHandle;
-                for (let i = 0; i < parts.length; i++) {
-                  if (i === parts.length - 1) {
-                    await current.removeEntry(parts[i]);
-                  } else {
-                    current = await current.getDirectoryHandle(parts[i]);
-                  }
-                }
-              } catch (e) {
-                console.warn('Failed to remove old file:', e);
-              }
-            }
-          }
-        } catch (e) {
-          console.error('Move file failed:', e);
-          window.App.showToast('移动文件失败，但元数据已更新', 'warning');
-        }
-      }
-
       doc.name = newName;
       doc.category = newCategory;
-      doc.fileName = newFileName;
       doc.tags = editingTags;
       doc.note = newNote;
       doc.updatedAt = new Date().toISOString();
@@ -2253,23 +2331,6 @@ window.addEventListener('DOMContentLoaded', () => {
     const confirmed = await window.App.confirm('确定要删除文件 "' + doc.name + '" 吗？此操作不可恢复。');
     if (!confirmed) return;
 
-    // Try to delete from disk
-    if (window.App.dirHandle) {
-      try {
-        const parts = doc.fileName.split('/');
-        let current = window.App.dirHandle;
-        for (let i = 0; i < parts.length; i++) {
-          if (i === parts.length - 1) {
-            await current.removeEntry(parts[i]);
-          } else {
-            current = await current.getDirectoryHandle(parts[i]);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to delete file from disk:', e);
-      }
-    }
-
     data.documents = (data.documents || []).filter(d => d.id !== docId);
     data.updatedAt = new Date().toISOString();
     window.App.setData('documents', data);
@@ -2285,20 +2346,19 @@ window.addEventListener('DOMContentLoaded', () => {
     const doc = (data.documents || []).find(d => d.id === docId);
     if (!doc) return;
 
-    const file = await getFileFromDisk(doc.fileName);
-    if (!file) {
-      window.App.showToast('文件读取失败', 'error');
+    const fileUrl = await getFileUrl(doc.fileName);
+    if (!fileUrl) {
+      window.App.showToast('文件链接无效', 'error');
       return;
     }
 
-    const url = URL.createObjectURL(file);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = doc.fileName.split('/').pop();
+    a.href = fileUrl;
+    a.download = doc.name + '.' + doc.type;
+    a.target = '_blank';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
     window.App.showToast('开始下载: ' + doc.name, 'info');
   }
 
@@ -3431,47 +3491,30 @@ window.addEventListener('DOMContentLoaded', () => {
     return html;
   }
 
-  // ── Photo: Load thumbnails via File System Access API ──
+  // ── Photo: Load thumbnails via URL ──
   async function loadPhotoThumbnails() {
-    if (!App.dirHandle) return;
     const imgs = container().querySelectorAll('img[data-src]');
     for (const img of imgs) {
-      const path = img.getAttribute('data-src');
-      if (!path) continue;
-      try {
-        const parts = path.split('/');
-        let handle = App.dirHandle;
-        for (let i = 0; i < parts.length - 1; i++) {
-          if (!parts[i]) continue;
-          handle = await handle.getDirectoryHandle(parts[i], { create: false });
-        }
-        const fileHandle = await handle.getFileHandle(parts[parts.length - 1], { create: false });
-        const file = await fileHandle.getFile();
-        const url = URL.createObjectURL(file);
-        photoObjectURLs.push(url);
+      const url = img.getAttribute('data-src');
+      if (url && url.startsWith('http')) {
         img.src = url;
-      } catch (e) {
-        // fallback: keep placeholder
       }
     }
   }
 
-  // ── Photo: Upload ──
+  // ── Photo: Upload to Supabase Storage ──
   async function savePhotoFile(file, dateFolder) {
-    if (!App.dirHandle) {
-      App.showToast('请先选择项目文件夹', 'warning');
+    if (!App.currentProject) {
+      App.showToast('请先登录', 'warning');
       return null;
     }
     try {
-      let photosDir = await App.dirHandle.getDirectoryHandle('photos', { create: true });
-      let dateDir = await photosDir.getDirectoryHandle(dateFolder, { create: true });
       const ext = file.name.split('.').pop();
       const fileName = 'IMG_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5) + '.' + ext;
-      const fileHandle = await dateDir.getFileHandle(fileName, { create: true });
-      const writable = await fileHandle.createWritable();
-      await writable.write(file);
-      await writable.close();
-      return `photos/${dateFolder}/${fileName}`;
+      const safePath = `projects/${App.currentProject.id}/photos/${dateFolder}/${fileName}`;
+      const result = await App.uploadFile('images', safePath, file);
+      if (result.error) throw result.error;
+      return result.url;
     } catch (e) {
       App.showToast('保存照片失败: ' + e.message, 'error');
       return null;
@@ -3518,17 +3561,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!ph) return;
     const user = getUser(ph.takenBy);
     let imgUrl = '';
-    try {
-      const parts = ph.fileName.split('/');
-      let handle = App.dirHandle;
-      for (let i = 0; i < parts.length - 1; i++) {
-        handle = await handle.getDirectoryHandle(parts[i], { create: false });
-      }
-      const fileHandle = await handle.getFileHandle(parts[parts.length - 1], { create: false });
-      const file = await fileHandle.getFile();
-      imgUrl = URL.createObjectURL(file);
-      photoObjectURLs.push(imgUrl);
-    } catch (e) { /* ignore */ }
+    if (ph.fileName && ph.fileName.startsWith('http')) {
+      imgUrl = ph.fileName;
+    }
 
     const overlay = document.getElementById('modalOverlay');
     const content = document.getElementById('modalContent');
@@ -3607,22 +3642,10 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   async function deletePhoto(photoId) {
-    const ok = await App.confirm('确定要删除这张照片吗？文件将从本地文件夹中移除。');
+    const ok = await App.confirm('确定要删除这张照片吗？');
     if (!ok) return;
     const idx = (data.photos || []).findIndex(p => p.id === photoId);
     if (idx === -1) return;
-    const ph = data.photos[idx];
-    // Delete file
-    if (App.dirHandle && ph.fileName) {
-      try {
-        const parts = ph.fileName.split('/');
-        let handle = App.dirHandle;
-        for (let i = 0; i < parts.length - 1; i++) {
-          handle = await handle.getDirectoryHandle(parts[i], { create: false });
-        }
-        await handle.removeEntry(parts[parts.length - 1]);
-      } catch (e) { /* ignore */ }
-    }
     data.photos.splice(idx, 1);
     save();
     closeModal();

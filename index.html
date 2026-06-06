@@ -646,6 +646,15 @@ window.App = {
     
     updateUserUI();
     updateProjectName();
+    
+    // 数据加载完成后，渲染当前活动模块
+    const activeModule = document.querySelector('.module-content.active');
+    if (activeModule) {
+      const moduleId = activeModule.id.replace('module-', '');
+      if (MODULES[moduleId] && MODULES[moduleId].render) {
+        MODULES[moduleId].render();
+      }
+    }
   },
 
   // 保存模块数据到 Supabase

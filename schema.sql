@@ -322,6 +322,8 @@ CREATE TABLE IF NOT EXISTS module_data (
 );
 
 ALTER TABLE module_data ENABLE ROW LEVEL SECURITY;
+
+-- SELECT: 用户可以查看自己项目的数据
 CREATE POLICY "Users can view project module_data" ON module_data
   FOR SELECT USING (
     project_id IN (
@@ -330,8 +332,30 @@ CREATE POLICY "Users can view project module_data" ON module_data
       SELECT project_id FROM project_members WHERE user_id = auth.uid()
     )
   );
-CREATE POLICY "Users can manage project module_data" ON module_data
-  FOR ALL USING (
+
+-- INSERT: 用户可以向自己项目插入数据
+CREATE POLICY "Users can insert project module_data" ON module_data
+  FOR INSERT WITH CHECK (
+    project_id IN (
+      SELECT id FROM projects WHERE owner_id = auth.uid()
+      UNION
+      SELECT project_id FROM project_members WHERE user_id = auth.uid()
+    )
+  );
+
+-- UPDATE: 用户可以更新自己项目的数据
+CREATE POLICY "Users can update project module_data" ON module_data
+  FOR UPDATE USING (
+    project_id IN (
+      SELECT id FROM projects WHERE owner_id = auth.uid()
+      UNION
+      SELECT project_id FROM project_members WHERE user_id = auth.uid()
+    )
+  );
+
+-- DELETE: 用户可以删除自己项目的数据
+CREATE POLICY "Users can delete project module_data" ON module_data
+  FOR DELETE USING (
     project_id IN (
       SELECT id FROM projects WHERE owner_id = auth.uid()
       UNION

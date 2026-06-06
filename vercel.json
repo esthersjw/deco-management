@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/src/index.html" },
+    { "source": "/board", "destination": "/src/board.html" },
+    { "source": "/board.html", "destination": "/src/board.html" },
+    { "source": "/(.*)", "destination": "/src/$1" }
+  ]
+}

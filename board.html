@@ -20,6 +20,10 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
 
 /* ========== BOARD CONTAINER ========== */
 #boardContainer{position:absolute;top:48px;left:0;right:0;bottom:0;overflow:hidden;background:#fefcf6}
+
+/* Toast notification */
+.board-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(42,42,42,0.9);color:#fff;padding:10px 20px;border-radius:8px;font-size:0.85rem;z-index:20000;opacity:0;transition:opacity 0.3s ease,transform 0.3s ease;pointer-events:none;white-space:nowrap}
+.board-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
@@ -865,6 +869,9 @@ const BoardStorage = {
     // Global mouse events
     window.addEventListener('mousemove', onWindowMouseMove);
     window.addEventListener('mouseup', onWindowMouseUp);
+
+    // Paste image from clipboard
+    document.addEventListener('paste', onDocumentPaste);
 
     // Keyboard shortcuts
     document.addEventListener('keydown', onDocumentKeyDown);
@@ -1786,6 +1793,57 @@ const BoardStorage = {
     loadImageFile(file, id); selectCard(id);
   }
 
+  // ============ TOAST ============
+  function showToast(message) {
+    let toast = document.getElementById('boardToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'boardToast';
+      toast.className = 'board-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
+  }
+
+  // ============ CLIPBOARD PASTE ============
+  function onDocumentPaste(e) {
+    if (!area) return;
+    // 如果正在编辑文本，不处理粘贴图片
+    if (document.activeElement?.isContentEditable || document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+      return;
+    }
+    
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    let imageFile = null;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        imageFile = items[i].getAsFile();
+        break;
+      }
+    }
+    
+    if (!imageFile) return;
+    
+    e.preventDefault();
+    
+    // 在画布中心创建图片卡片
+    const r = area.getBoundingClientRect();
+    const cx = (-panX + r.width / 2) / scale - 140;
+    const cy = (-panY + r.height / 2) / scale - 100;
+    const id = createCardData('image', cx, cy);
+    renderCard(id);
+    pushUndo({ type: 'create', cardId: id, data: { ...cards.get(id) } });
+    loadImageFile(imageFile, id);
+    selectCard(id);
+    
+    // 显示提示
+    showToast('图片已粘贴到情绪板');
+  }
+
   // ============ ALIGNMENT GUIDES ============
   function clearAlignGuides() {
     alignGuides.forEach(el => el.remove());
@@ -1852,6 +1910,15 @@ const BoardStorage = {
     if (e.button === 2) return;
 
     hideCtx();
+
+    // 中键（滚轮按下）平移视图
+    if (e.button === 1) {
+      e.preventDefault();
+      isPanning = true;
+      panStartX = e.clientX - panX; panStartY = e.clientY - panY;
+      if (area) area.style.cursor = 'grabbing';
+      return;
+    }
 
     if (currentTool === 'draw' && !eraserMode) {
       isDrawing = true;
@@ -2101,7 +2168,7 @@ const BoardStorage = {
     }
     boxSelectStart = null;
 
-    if (isPanning) { isPanning = false; scheduleSave(); }
+    if (isPanning) { isPanning = false; if (area) area.style.cursor = ''; scheduleSave(); }
 
     if (dragCard) {
       const el = document.getElementById(dragCard);

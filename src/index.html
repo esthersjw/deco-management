@@ -1020,9 +1020,16 @@ function openAiAssistant() {
   const overlay = document.getElementById('aiAssistantOverlay');
   const input = document.getElementById('aiInput');
   const preview = document.getElementById('aiPreview');
+  const btn = document.getElementById('btnAiExecute');
   if (overlay) overlay.classList.add('show');
   if (input) input.value = '';
   if (preview) preview.style.display = 'none';
+  // 重置按钮状态
+  if (btn) {
+    btn.textContent = '✨ 执行';
+    btn.disabled = false;
+    btn.onclick = null;
+  }
 }
 
 function closeAiAssistant() {
@@ -1051,14 +1058,22 @@ async function callAiProxy(text) {
     });
     
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'AI 服务错误');
+      const errorData = await response.json().catch(() => ({}));
+      // 检查是否是 API Key 未配置
+      if (response.status === 500 && errorData.error?.includes('ZHIPU_API_KEY')) {
+        return [{ type: 'config_error', message: 'ZHIPU_API_KEY 未配置' }];
+      }
+      throw new Error(errorData.error || `AI 服务错误 (${response.status})`);
     }
     
     const data = await response.json();
     return data.actions || [];
   } catch (e) {
     console.error('AI Proxy call failed:', e);
+    // 网络错误或服务端未部署
+    if (e.message?.includes('Failed to fetch') || e.message?.includes('NetworkError')) {
+      return [{ type: 'config_error', message: 'AI 服务未连接，请检查 Vercel 部署状态' }];
+    }
     // 降级：返回本地解析结果
     return parseAiInputLocal(text);
   }
@@ -1376,6 +1391,18 @@ function renderAiPreview(actions) {
     return '❓ 未能识别指令，请尝试：<br>• "家电预算10万"<br>• "今天付了瓷砖定金5000"<br>• "水电阶段完成了"<br>• "和设计师微信讨论了方案"';
   }
   
+  // 检查是否有配置错误
+  const configError = actions.find(a => a.type === 'config_error');
+  if (configError) {
+    return `⚠️ <strong>AI 服务未配置</strong><br><br>
+      ${configError.message}<br><br>
+      请按以下步骤配置：<br>
+      1. 访问 <a href="https://open.bigmodel.cn" target="_blank" style="color:var(--blue)">open.bigmodel.cn</a> 申请 API Key<br>
+      2. 在 Vercel Dashboard → Settings → Environment Variables 添加 ZHIPU_API_KEY<br>
+      3. 重新部署项目<br><br>
+      <em>或者使用下方快捷标签输入标准格式</em>`;
+  }
+  
   if (actions.every(a => a.type === 'unknown')) {
     return '❓ 未能识别指令，请尝试：<br>• "家电预算10万"<br>• "今天付了瓷砖定金5000"<br>• "水电阶段完成了"<br>• "和设计师微信讨论了方案"';
   }
@@ -1387,7 +1414,7 @@ function renderAiPreview(actions) {
       case 'phase_update': return `📅 更新进度: ${a.phase_name} → ${a.status}`;
       case 'communication': return `💬 添加沟通: 与${a.contact_name}的${a.comm_type || a.type_detail || '其他'}记录`;
       case 'document': return `📄 添加文档: ${a.title || a.description || '文档记录'}`;
-      default: return `❓ 未识别: "${a.raw}"`;
+      default: return `❓ 未识别: "${a.raw || a.content || a.text || JSON.stringify(a).slice(0, 50) || '未知内容'}"`;
     }
   }).join('<br>');
   
@@ -1411,6 +1438,17 @@ document.getElementById('btnAiExecute').addEventListener('click', async () => {
   preview.style.display = 'block';
   
   const actions = await callAiProxy(text);
+  
+  // 检查是否有配置错误
+  if (actions.some(a => a.type === 'config_error')) {
+    preview.innerHTML = renderAiPreview(actions);
+    preview.style.display = 'block';
+    // 禁用执行按钮
+    const btn = document.getElementById('btnAiExecute');
+    btn.textContent = '⚠️ 需配置 API Key';
+    btn.disabled = true;
+    return;
+  }
   
   // 检查是否全部未识别
   if (actions.every(a => a.type === 'unknown')) {

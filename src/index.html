@@ -348,6 +348,35 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
   </div>
 </div>
 
+<!-- AI ASSISTANT MODAL -->
+<div class="modal-overlay" id="aiAssistantOverlay" style="z-index:2000">
+  <div class="modal-content" id="aiAssistantContent" style="max-width:600px">
+    <div class="modal-header">
+      <div class="modal-title">🤖 AI 助手</div>
+      <button class="modal-close" onclick="closeAiAssistant()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.85rem;color:var(--ink-faint);margin-bottom:12px">直接输入自然语言，我帮你记录到数据库：</p>
+      <textarea class="app-input" id="aiInput" rows="4" placeholder="例如：
+• 家电预算10万
+• 今天付了瓷砖定金5000
+• 水电阶段完成了
+• 和设计师微信讨论了方案" style="resize:vertical;margin-bottom:12px;font-family:inherit"></textarea>
+      <div id="aiPreview" style="display:none;background:var(--blue-light);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:0.85rem"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="badge badge-gray" style="cursor:pointer" onclick="setAiInput('家电预算10万')">💰 家电预算10万</span>
+        <span class="badge badge-gray" style="cursor:pointer" onclick="setAiInput('软装预算10万')">💰 软装预算10万</span>
+        <span class="badge badge-gray" style="cursor:pointer" onclick="setAiInput('今天付了定金5000')">💳 付定金5000</span>
+        <span class="badge badge-gray" style="cursor:pointer" onclick="setAiInput('水电阶段完成了')">✅ 水电完成</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeAiAssistant()">取消</button>
+      <button class="btn btn-primary" id="btnAiExecute">✨ 执行</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST CONTAINER -->
 <div class="toast-container" id="toastContainer"></div>
 
@@ -386,6 +415,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
           </div>
         </div>
       </div>
+      <button class="btn-icon" id="aiAssistantBtn" title="AI 助手">🤖</button>
       <button class="btn-icon" id="settingsBtn" title="设置">🔧</button>
     </div>
   </header>
@@ -983,6 +1013,298 @@ function registerModule(id, module) {
   MODULES[id] = module;
   if (module.init) module.init();
 }
+
+// ==================== AI ASSISTANT ====================
+
+function openAiAssistant() {
+  const overlay = document.getElementById('aiAssistantOverlay');
+  const input = document.getElementById('aiInput');
+  const preview = document.getElementById('aiPreview');
+  if (overlay) overlay.classList.add('show');
+  if (input) input.value = '';
+  if (preview) preview.style.display = 'none';
+}
+
+function closeAiAssistant() {
+  const overlay = document.getElementById('aiAssistantOverlay');
+  if (overlay) overlay.classList.remove('show');
+}
+
+function setAiInput(text) {
+  const input = document.getElementById('aiInput');
+  if (input) input.value = text;
+}
+
+// 自然语言解析引擎
+function parseAiInput(text) {
+  const results = [];
+  const lines = text.split(/[\n,，;；]/).filter(l => l.trim());
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    
+    // 模式1: XX预算XX万/元
+    const budgetMatch = trimmed.match(/(.+?)(?:预算|预计|计划)(\d+(?:\.\d+)?)\s*(万|元|块)?/);
+    if (budgetMatch) {
+      const category = budgetMatch[1].trim();
+      let amount = parseFloat(budgetMatch[2]);
+      const unit = budgetMatch[3] || '元';
+      if (unit === '万') amount *= 10000;
+      results.push({
+        type: 'budget',
+        category: category,
+        item_name: category + '总预算',
+        estimated: amount,
+        actual: 0,
+        status: '计划中',
+        notes: '由 AI 助手录入: ' + trimmed
+      });
+      continue;
+    }
+    
+    // 模式2: 付了/支付了/交了 XX钱/定金/尾款
+    const paymentMatch = trimmed.match(/(?:付了|支付|交|转账|打款)(?:了)?(.+?)(\d+(?:\.\d+)?)\s*(万|元|块)?/);
+    if (paymentMatch) {
+      const desc = paymentMatch[1].trim();
+      let amount = parseFloat(paymentMatch[2]);
+      const unit = paymentMatch[3] || '元';
+      if (unit === '万') amount *= 10000;
+      results.push({
+        type: 'payment',
+        description: desc,
+        amount: amount,
+        date: new Date().toISOString().slice(0, 10),
+        notes: '由 AI 助手录入: ' + trimmed
+      });
+      continue;
+    }
+    
+    // 模式3: XX阶段完成了/开始了
+    const phaseMatch = trimmed.match(/(.+?)(?:阶段|步骤)(?:完成了|结束了|开始了|进行中)/);
+    if (phaseMatch) {
+      const phaseName = phaseMatch[1].trim();
+      const statusMap = {
+        '完成了': '已完成',
+        '结束了': '已完成',
+        '开始了': '进行中',
+        '进行中': '进行中'
+      };
+      const status = statusMap[phaseMatch[0].match(/完成了|结束了|开始了|进行中/)[0]] || '进行中';
+      results.push({
+        type: 'phase',
+        phase_name: phaseName,
+        status: status,
+        notes: '由 AI 助手录入: ' + trimmed
+      });
+      continue;
+    }
+    
+    // 模式4: 和XX沟通/讨论/联系
+    const commMatch = trimmed.match(/(?:和|与)(.+?)(?:微信|电话|现场|邮件|沟通|讨论|联系|聊)/);
+    if (commMatch) {
+      const contact = commMatch[1].trim();
+      const typeMap = {
+        '微信': '微信',
+        '电话': '电话',
+        '现场': '现场',
+        '邮件': '邮件'
+      };
+      let commType = '其他';
+      for (const [key, val] of Object.entries(typeMap)) {
+        if (trimmed.includes(key)) { commType = val; break; }
+      }
+      results.push({
+        type: 'communication',
+        contact_name: contact,
+        comm_type: commType,
+        content: trimmed,
+        status: '待跟进',
+        notes: '由 AI 助手录入'
+      });
+      continue;
+    }
+    
+    // 未识别
+    results.push({
+      type: 'unknown',
+      raw: trimmed
+    });
+  }
+  
+  return results;
+}
+
+// 执行 AI 解析结果
+async function executeAiResults(results) {
+  let successCount = 0;
+  let failCount = 0;
+  const messages = [];
+  
+  for (const result of results) {
+    try {
+      switch (result.type) {
+        case 'budget': {
+          const budgetData = App.getData('budget') || { totalBudget: 0, items: [], payments: [] };
+          budgetData.items = budgetData.items || [];
+          budgetData.items.push({
+            id: 'budget_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            category: result.category,
+            item_name: result.item_name,
+            vendor: '',
+            estimated: result.estimated,
+            actual: result.actual,
+            status: result.status,
+            notes: result.notes
+          });
+          // 重新计算总预算
+          budgetData.totalBudget = budgetData.items.reduce((sum, item) => sum + (Number(item.estimated) || 0), 0);
+          App.setData('budget', budgetData);
+          messages.push(`✅ 添加预算: ${result.category} ¥${result.estimated.toLocaleString()}`);
+          successCount++;
+          break;
+        }
+        case 'payment': {
+          const budgetData = App.getData('budget') || { totalBudget: 0, items: [], payments: [] };
+          budgetData.payments = budgetData.payments || [];
+          budgetData.payments.push({
+            id: 'pay_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            description: result.description,
+            amount: result.amount,
+            date: result.date,
+            notes: result.notes
+          });
+          App.setData('budget', budgetData);
+          messages.push(`✅ 记录付款: ${result.description} ¥${result.amount.toLocaleString()}`);
+          successCount++;
+          break;
+        }
+        case 'phase': {
+          const progressData = App.getData('progress') || { phases: [], currentPhaseId: null };
+          progressData.phases = progressData.phases || [];
+          const phase = progressData.phases.find(p => p.name.includes(result.phase_name) || result.phase_name.includes(p.name));
+          if (phase) {
+            phase.status = result.status;
+            if (result.status === '已完成') {
+              phase.actualEnd = new Date().toISOString().slice(0, 10);
+              phase.progress = 100;
+            } else if (result.status === '进行中') {
+              phase.actualStart = new Date().toISOString().slice(0, 10);
+              phase.progress = phase.progress || 10;
+            }
+            App.setData('progress', progressData);
+            messages.push(`✅ 更新进度: ${result.phase_name} → ${result.status}`);
+            successCount++;
+          } else {
+            messages.push(`⚠️ 未找到阶段: ${result.phase_name}`);
+            failCount++;
+          }
+          break;
+        }
+        case 'communication': {
+          const commData = App.getData('communications') || { records: [] };
+          commData.records = commData.records || [];
+          commData.records.push({
+            id: 'comm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            type: result.comm_type,
+            content: result.content,
+            contact_name: result.contact_name,
+            contact_role: '',
+            status: result.status,
+            date: new Date().toISOString(),
+            todos: []
+          });
+          App.setData('communications', commData);
+          messages.push(`✅ 添加沟通记录: 与${result.contact_name}的${result.comm_type}沟通`);
+          successCount++;
+          break;
+        }
+        case 'unknown':
+          messages.push(`❓ 未识别: "${result.raw}"`);
+          failCount++;
+          break;
+      }
+    } catch (e) {
+      console.error('AI execute error:', e);
+      messages.push(`❌ 失败: ${result.raw || result.type}`);
+      failCount++;
+    }
+  }
+  
+  return { successCount, failCount, messages };
+}
+
+document.getElementById('aiAssistantBtn').addEventListener('click', openAiAssistant);
+
+document.getElementById('btnAiExecute').addEventListener('click', async () => {
+  const input = document.getElementById('aiInput');
+  const preview = document.getElementById('aiPreview');
+  const text = input.value.trim();
+  
+  if (!text) {
+    App.showToast('请输入内容', 'warning');
+    return;
+  }
+  
+  const results = parseAiInput(text);
+  
+  if (results.every(r => r.type === 'unknown')) {
+    preview.innerHTML = '❓ 未能识别指令，请尝试：<br>• "家电预算10万"<br>• "今天付了瓷砖定金5000"<br>• "水电阶段完成了"<br>• "和设计师微信讨论了方案"';
+    preview.style.display = 'block';
+    return;
+  }
+  
+  // 显示预览
+  const previewHtml = results.map(r => {
+    switch (r.type) {
+      case 'budget': return `💰 添加预算: ${r.category} ¥${r.estimated.toLocaleString()}`;
+      case 'payment': return `💳 记录付款: ${r.description} ¥${r.amount.toLocaleString()}`;
+      case 'phase': return `📅 更新进度: ${r.phase_name} → ${r.status}`;
+      case 'communication': return `💬 添加沟通: 与${r.contact_name}的${r.comm_type}记录`;
+      default: return `❓ 未识别: "${r.raw}"`;
+    }
+  }).join('<br>');
+  
+  preview.innerHTML = '<strong>预览：</strong><br>' + previewHtml + '<br><br><em>点击"确认执行"写入数据库</em>';
+  preview.style.display = 'block';
+  
+  // 更改按钮为确认执行
+  const btn = document.getElementById('btnAiExecute');
+  btn.textContent = '✅ 确认执行';
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = '⏳ 执行中...';
+    
+    const { successCount, failCount, messages } = await executeAiResults(results);
+    
+    preview.innerHTML = '<strong>执行结果：</strong><br>' + messages.join('<br>');
+    preview.style.display = 'block';
+    
+    if (successCount > 0) {
+      App.showToast(`成功录入 ${successCount} 条数据`, 'success');
+      // 刷新当前模块显示
+      const activeModule = document.querySelector('.module-content.active');
+      if (activeModule) {
+        const moduleId = activeModule.id.replace('module-', '');
+        if (MODULES[moduleId] && MODULES[moduleId].render) {
+          MODULES[moduleId].render();
+        }
+      }
+    }
+    if (failCount > 0) {
+      App.showToast(`${failCount} 条未识别或失败`, 'warning');
+    }
+    
+    // 重置按钮
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = '✨ 执行';
+      btn.onclick = null;
+      // 重新绑定原始事件
+      btn.addEventListener('click', arguments.callee);
+    }, 2000);
+  };
+});
 
 // ==================== SETTINGS ====================
 

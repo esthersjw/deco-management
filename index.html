@@ -1035,8 +1035,37 @@ function setAiInput(text) {
   if (input) input.value = text;
 }
 
-// 自然语言解析引擎（增强版 - 支持多种表达方式）
-function parseAiInput(text) {
+// 调用服务端 AI 代理解析自然语言
+async function callAiProxy(text) {
+  try {
+    const response = await fetch('/api/ai-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: text,
+        context: {
+          projectName: App.currentProject?.name || '装修项目',
+          currentUser: App.currentUser?.email || '用户'
+        }
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'AI 服务错误');
+    }
+    
+    const data = await response.json();
+    return data.actions || [];
+  } catch (e) {
+    console.error('AI Proxy call failed:', e);
+    // 降级：返回本地解析结果
+    return parseAiInputLocal(text);
+  }
+}
+
+// 本地降级解析（当 AI 服务不可用时）
+function parseAiInputLocal(text) {
   const results = [];
   // 按多种分隔符拆分句子：逗号、然后、并且、接着、句号等
   const sentences = text.split(/[,，;；。！!？?\n]+|(?:然后|并且|接着|同时|另外|还有|以及)/).filter(s => s.trim());
@@ -1147,7 +1176,7 @@ function parseAiInput(text) {
         if (trimmed.match(/完成了|结束了|做完了|搞完了|弄完了|收工了|竣工了|完事了|搞定|ok|OK|好了|结束|完成/)) status = '已完成';
         else if (trimmed.match(/开始了|开工了|启动了|进场了|进场|进行中|正在做|正在搞|正在弄/)) status = '进行中';
         results.push({
-          type: 'phase',
+          type: 'phase_update',
           phase_name: phaseName,
           status: status,
           notes: '由 AI 助手录入: ' + trimmed
@@ -1203,32 +1232,49 @@ function parseAiInput(text) {
   return results;
 }
 
-// 执行 AI 解析结果
-async function executeAiResults(results) {
+// 执行 AI 返回的 actions
+async function executeAiActions(actions) {
   let successCount = 0;
   let failCount = 0;
   const messages = [];
   
-  for (const result of results) {
+  for (const action of actions) {
     try {
-      switch (result.type) {
+      switch (action.type) {
         case 'budget': {
           const budgetData = App.getData('budget') || { totalBudget: 0, items: [], payments: [] };
           budgetData.items = budgetData.items || [];
-          budgetData.items.push({
-            id: 'budget_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-            category: result.category,
-            item_name: result.item_name,
-            vendor: '',
-            estimated: result.estimated,
-            actual: result.actual,
-            status: result.status,
-            notes: result.notes
-          });
+          
+          // 检查是否是更新现有预算（notes 包含调整关键词）
+          const isUpdate = action.notes && /调整|改成|改为|更新/.test(action.notes);
+          const existingIndex = isUpdate ? budgetData.items.findIndex(
+            item => item.category === action.category || 
+                    (action.item_name && item.item_name === action.item_name)
+          ) : -1;
+          
+          if (existingIndex >= 0) {
+            // 更新现有预算
+            budgetData.items[existingIndex].estimated = action.estimated;
+            budgetData.items[existingIndex].notes = action.notes || budgetData.items[existingIndex].notes;
+            messages.push(`✅ 更新预算: ${action.category} ¥${action.estimated.toLocaleString()}`);
+          } else {
+            // 新增预算
+            budgetData.items.push({
+              id: 'budget_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+              category: action.category,
+              item_name: action.item_name || action.category + '总预算',
+              vendor: action.vendor || '',
+              estimated: action.estimated,
+              actual: action.actual || 0,
+              status: action.status || '计划中',
+              notes: action.notes || '由 AI 助手录入'
+            });
+            messages.push(`✅ 添加预算: ${action.category} ¥${action.estimated.toLocaleString()}`);
+          }
+          
           // 重新计算总预算
           budgetData.totalBudget = budgetData.items.reduce((sum, item) => sum + (Number(item.estimated) || 0), 0);
           App.setData('budget', budgetData);
-          messages.push(`✅ 添加预算: ${result.category} ¥${result.estimated.toLocaleString()}`);
           successCount++;
           break;
         }
@@ -1237,34 +1283,36 @@ async function executeAiResults(results) {
           budgetData.payments = budgetData.payments || [];
           budgetData.payments.push({
             id: 'pay_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-            description: result.description,
-            amount: result.amount,
-            date: result.date,
-            notes: result.notes
+            description: action.description,
+            amount: action.amount,
+            date: action.date || new Date().toISOString().slice(0, 10),
+            notes: action.notes || '由 AI 助手录入'
           });
           App.setData('budget', budgetData);
-          messages.push(`✅ 记录付款: ${result.description} ¥${result.amount.toLocaleString()}`);
+          messages.push(`✅ 记录付款: ${action.description} ¥${action.amount.toLocaleString()}`);
           successCount++;
           break;
         }
-        case 'phase': {
+        case 'phase_update': {
           const progressData = App.getData('progress') || { phases: [], currentPhaseId: null };
           progressData.phases = progressData.phases || [];
-          const phase = progressData.phases.find(p => p.name.includes(result.phase_name) || result.phase_name.includes(p.name));
+          const phase = progressData.phases.find(p => 
+            p.name.includes(action.phase_name) || action.phase_name.includes(p.name)
+          );
           if (phase) {
-            phase.status = result.status;
-            if (result.status === '已完成') {
+            phase.status = action.status;
+            if (action.status === '已完成') {
               phase.actualEnd = new Date().toISOString().slice(0, 10);
               phase.progress = 100;
-            } else if (result.status === '进行中') {
+            } else if (action.status === '进行中') {
               phase.actualStart = new Date().toISOString().slice(0, 10);
               phase.progress = phase.progress || 10;
             }
             App.setData('progress', progressData);
-            messages.push(`✅ 更新进度: ${result.phase_name} → ${result.status}`);
+            messages.push(`✅ 更新进度: ${action.phase_name} → ${action.status}`);
             successCount++;
           } else {
-            messages.push(`⚠️ 未找到阶段: ${result.phase_name}`);
+            messages.push(`⚠️ 未找到阶段: ${action.phase_name}`);
             failCount++;
           }
           break;
@@ -1274,32 +1322,76 @@ async function executeAiResults(results) {
           commData.records = commData.records || [];
           commData.records.push({
             id: 'comm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-            type: result.comm_type,
-            content: result.content,
-            contact_name: result.contact_name,
-            contact_role: '',
-            status: result.status,
-            date: new Date().toISOString(),
-            todos: []
+            type: action.comm_type || action.type_detail || '其他',
+            content: action.content,
+            contact_name: action.contact_name,
+            contact_role: action.contact_role || '',
+            status: action.status || '待跟进',
+            date: action.date || new Date().toISOString(),
+            todos: action.todos || []
           });
           App.setData('communications', commData);
-          messages.push(`✅ 添加沟通记录: 与${result.contact_name}的${result.comm_type}沟通`);
+          messages.push(`✅ 添加沟通记录: 与${action.contact_name}的${action.comm_type || action.type_detail || '其他'}沟通`);
+          successCount++;
+          break;
+        }
+        case 'document': {
+          const docData = App.getData('documents') || { records: [] };
+          docData.records = docData.records || [];
+          docData.records.push({
+            id: 'doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            title: action.title || action.description || '文档记录',
+            content: action.content || '',
+            category: action.category || '其他',
+            date: action.date || new Date().toISOString(),
+            notes: action.notes || '由 AI 助手录入'
+          });
+          App.setData('documents', docData);
+          messages.push(`✅ 添加文档记录: ${action.title || action.description || '文档记录'}`);
           successCount++;
           break;
         }
         case 'unknown':
-          messages.push(`❓ 未识别: "${result.raw}"`);
+          messages.push(`❓ 未识别: "${action.raw}"`);
+          failCount++;
+          break;
+        default:
+          messages.push(`❓ 未识别的 action 类型: ${action.type}`);
           failCount++;
           break;
       }
     } catch (e) {
       console.error('AI execute error:', e);
-      messages.push(`❌ 失败: ${result.raw || result.type}`);
+      messages.push(`❌ 失败: ${action.raw || action.type}`);
       failCount++;
     }
   }
   
   return { successCount, failCount, messages };
+}
+
+// 渲染 AI 返回的 actions 预览
+function renderAiPreview(actions) {
+  if (!actions || actions.length === 0) {
+    return '❓ 未能识别指令，请尝试：<br>• "家电预算10万"<br>• "今天付了瓷砖定金5000"<br>• "水电阶段完成了"<br>• "和设计师微信讨论了方案"';
+  }
+  
+  if (actions.every(a => a.type === 'unknown')) {
+    return '❓ 未能识别指令，请尝试：<br>• "家电预算10万"<br>• "今天付了瓷砖定金5000"<br>• "水电阶段完成了"<br>• "和设计师微信讨论了方案"';
+  }
+  
+  const previewHtml = actions.map(a => {
+    switch (a.type) {
+      case 'budget': return `💰 ${a.notes && /调整|改成|改为|更新/.test(a.notes) ? '更新' : '添加'}预算: ${a.category} ¥${(a.estimated || 0).toLocaleString()}`;
+      case 'payment': return `💳 记录付款: ${a.description} ¥${(a.amount || 0).toLocaleString()}`;
+      case 'phase_update': return `📅 更新进度: ${a.phase_name} → ${a.status}`;
+      case 'communication': return `💬 添加沟通: 与${a.contact_name}的${a.comm_type || a.type_detail || '其他'}记录`;
+      case 'document': return `📄 添加文档: ${a.title || a.description || '文档记录'}`;
+      default: return `❓ 未识别: "${a.raw}"`;
+    }
+  }).join('<br>');
+  
+  return '<strong>预览：</strong><br>' + previewHtml + '<br><br><em>点击"确认执行"写入数据库</em>';
 }
 
 document.getElementById('aiAssistantBtn').addEventListener('click', openAiAssistant);
@@ -1314,26 +1406,21 @@ document.getElementById('btnAiExecute').addEventListener('click', async () => {
     return;
   }
   
-  const results = parseAiInput(text);
+  // 显示加载状态
+  preview.innerHTML = '<em>⏳ AI 解析中...</em>';
+  preview.style.display = 'block';
   
-  if (results.every(r => r.type === 'unknown')) {
+  const actions = await callAiProxy(text);
+  
+  // 检查是否全部未识别
+  if (actions.every(a => a.type === 'unknown')) {
     preview.innerHTML = '❓ 未能识别指令，请尝试：<br>• "家电预算10万"<br>• "今天付了瓷砖定金5000"<br>• "水电阶段完成了"<br>• "和设计师微信讨论了方案"';
     preview.style.display = 'block';
     return;
   }
   
   // 显示预览
-  const previewHtml = results.map(r => {
-    switch (r.type) {
-      case 'budget': return `💰 添加预算: ${r.category} ¥${r.estimated.toLocaleString()}`;
-      case 'payment': return `💳 记录付款: ${r.description} ¥${r.amount.toLocaleString()}`;
-      case 'phase': return `📅 更新进度: ${r.phase_name} → ${r.status}`;
-      case 'communication': return `💬 添加沟通: 与${r.contact_name}的${r.comm_type}记录`;
-      default: return `❓ 未识别: "${r.raw}"`;
-    }
-  }).join('<br>');
-  
-  preview.innerHTML = '<strong>预览：</strong><br>' + previewHtml + '<br><br><em>点击"确认执行"写入数据库</em>';
+  preview.innerHTML = renderAiPreview(actions);
   preview.style.display = 'block';
   
   // 更改按钮为确认执行
@@ -1343,7 +1430,7 @@ document.getElementById('btnAiExecute').addEventListener('click', async () => {
     btn.disabled = true;
     btn.textContent = '⏳ 执行中...';
     
-    const { successCount, failCount, messages } = await executeAiResults(results);
+    const { successCount, failCount, messages } = await executeAiActions(actions);
     
     preview.innerHTML = '<strong>执行结果：</strong><br>' + messages.join('<br>');
     preview.style.display = 'block';

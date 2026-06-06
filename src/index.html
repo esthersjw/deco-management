@@ -38,7 +38,7 @@
 html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Noto Sans SC','PingFang SC','Helvetica Neue',sans-serif;background:var(--cream);color:var(--ink);font-size:14px;line-height:1.5}
 
 /* ========== APP LAYOUT ========== */
-.app-container{display:flex;height:100vh;width:100vw;overflow:hidden}
+.app-container{display:block;height:100vh;width:100vw;overflow:hidden}
 
 /* ========== TOP BAR ========== */
 .app-header{position:fixed;top:0;left:0;right:0;height:var(--header-h);background:var(--cream);border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:1000}
@@ -84,21 +84,21 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
 .nav-divider{height:1px;background:var(--border-light);margin:8px 16px}
 
 /* Collapsed sidebar */
-@media (max-width:900px){
+@media(max-width:900px){
   .app-sidebar{width:var(--sidebar-collapsed)}
   .nav-item{padding:10px;justify-content:center;margin:2px 4px}
   .nav-item .nav-label{display:none}
-  .app-main{margin-left:var(--sidebar-collapsed)!important}
+  .app-main{margin-left:var(--sidebar-collapsed)!important;width:calc(100vw - var(--sidebar-collapsed))!important}
 }
 
 /* ========== MAIN CONTENT ========== */
-.app-main{margin-left:var(--sidebar-w);margin-top:var(--header-h);height:calc(100vh - var(--header-h));overflow-y:auto;overflow-x:hidden;transition:margin-left 0.25s ease}
+.app-main{margin-left:var(--sidebar-w);margin-top:var(--header-h);height:calc(100vh - var(--header-h));width:calc(100vw - var(--sidebar-w));overflow-y:auto;overflow-x:hidden;transition:margin-left 0.25s ease}
 .app-main::-webkit-scrollbar{width:6px}
 .app-main::-webkit-scrollbar-track{background:transparent}
 .app-main::-webkit-scrollbar-thumb{background:var(--border-medium);border-radius:3px}
 
-.module-content{display:none;padding:24px;min-height:100%}
-.module-content.active{display:block}
+.module-content{display:none;padding:24px;min-height:100%;width:100%}
+.module-content.active{display:block;height:100%;width:100%}
 
 /* ========== MODULE HEADER ========== */
 .module-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
@@ -268,11 +268,6 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
 .timeline-line.completed{background:var(--green)}
 .timeline-line.active{background:var(--blue)}
 
-/* ========== BOARD MODULE (Whiteboard) ========== */
-#module-board{position:relative;padding:0!important;overflow:hidden}
-#module-board .module-header{position:absolute;top:0;left:0;right:0;padding:12px 16px;margin:0;z-index:100;background:rgba(254,252,246,0.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--border-light)}
-#module-board .board-container{position:absolute;top:48px;left:0;right:0;bottom:0}
-
 /* ========== RESPONSIVE ========== */
 @media (max-width:600px){
   .app-sidebar{display:none}
@@ -351,10 +346,6 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
       <span class="nav-icon">📊</span>
       <span class="nav-label">总览</span>
     </div>
-    <div class="nav-item" data-module="board" id="nav-board">
-      <span class="nav-icon">🎨</span>
-      <span class="nav-label">情绪板</span>
-    </div>
     <div class="nav-item" data-module="documents" id="nav-documents">
       <span class="nav-icon">📁</span>
       <span class="nav-label">文档库</span>
@@ -380,14 +371,12 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
     <div class="module-content active" id="module-dashboard">
       <div class="module-header">
         <div class="module-title"><span class="module-icon">📊</span>总览</div>
-        <button class="btn btn-primary btn-sm" id="btnGenerateReport">📄 生成本周周报</button>
+        <div style="display:flex;gap:8px">
+          <a href="board.html" class="btn btn-secondary btn-sm" style="text-decoration:none" target="_blank">🎨 情绪板</a>
+          <button class="btn btn-primary btn-sm" id="btnGenerateReport">📄 生成本周周报</button>
+        </div>
       </div>
       <div id="dashboard-content"></div>
-    </div>
-
-    <!-- BOARD MODULE (Whiteboard) -->
-    <div class="module-content" id="module-board">
-      <div class="board-container" id="boardContainer"></div>
     </div>
 
     <!-- DOCUMENTS MODULE -->
@@ -432,10 +421,6 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
     <div class="mobile-nav-item active" data-module="dashboard">
       <span class="nav-icon">📊</span>
       <span>总览</span>
-    </div>
-    <div class="mobile-nav-item" data-module="board">
-      <span class="nav-icon">🎨</span>
-      <span>情绪板</span>
     </div>
     <div class="mobile-nav-item" data-module="documents">
       <span class="nav-icon">📁</span>
@@ -484,7 +469,6 @@ const DEFAULT_CONFIG = {
 // Default data for all modules
 const DEFAULT_DATA = {
   config: DEFAULT_CONFIG,
-  board: { version: '1.0', updatedAt: new Date().toISOString(), updatedBy: 'user_1', canvas: { scale: 1, panX: 0, panY: 0 }, cards: [], connections: [], drawStrokes: [], mindmapNodes: {} },
   documents: { version: '1.0', updatedAt: new Date().toISOString(), documents: [], categories: ['合同', '报价单', '设计图', '收据', '其他'] },
   budget: { version: '1.0', updatedAt: new Date().toISOString(), currency: 'CNY', totalBudget: 0, items: [], payments: [] },
   progress: { version: '1.0', updatedAt: new Date().toISOString(), phases: [
@@ -520,6 +504,7 @@ window.App = {
   switchModule(moduleId) {
     if (moduleId === currentModule) return;
     this.saveData();
+    const prevModule = currentModule;
     document.querySelectorAll('.module-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.mobile-nav-item').forEach(el => el.classList.remove('active'));
@@ -530,8 +515,8 @@ window.App = {
     document.querySelectorAll('.mobile-nav-item[data-module="' + moduleId + '"]').forEach(el => el.classList.add('active'));
     currentModule = moduleId;
     this.currentModule = moduleId;
+    if (MODULES[prevModule] && MODULES[prevModule].onHide) MODULES[prevModule].onHide();
     if (MODULES[moduleId] && MODULES[moduleId].onShow) MODULES[moduleId].onShow();
-    if (MODULES[currentModule] && MODULES[currentModule].onHide) MODULES[currentModule].onHide();
   },
 
   async saveData() {
@@ -902,7 +887,3486 @@ window.addEventListener('DOMContentLoaded', () => {
 // ==================== MODULE PLACEHOLDERS ====================
 </script>
 
-<!-- MODULE SCRIPTS WILL BE INSERTED HERE -->
+
+<!-- ====== DASHBOARD.JS ====== -->
+<script>
+// Dashboard Module
+(function() {
+  'use strict';
+
+  // Module internal state
+  let data = null;
+  let styleInjected = false;
+
+  // ==================== STYLE INJECTION ====================
+
+  function injectStyles() {
+    if (styleInjected) return;
+    styleInjected = true;
+    const style = document.createElement('style');
+    style.textContent = `
+      /* Dashboard Layout */
+      .dash-section { margin-bottom: 24px; }
+      .dash-section-title { font-family: 'Noto Serif SC', serif; font-size: 1rem; font-weight: 700; color: var(--ink); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+
+      /* Stat Cards Grid */
+      .dash-stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+      @media (max-width: 1200px) { .dash-stats-grid { grid-template-columns: repeat(3, 1fr); } }
+      @media (max-width: 600px) { .dash-stats-grid { grid-template-columns: repeat(2, 1fr); } }
+
+      /* Budget & Progress Row */
+      .dash-row-2 { display: grid; grid-template-columns: 1fr 1.6fr; gap: 20px; }
+      @media (max-width: 900px) { .dash-row-2 { grid-template-columns: 1fr; } }
+
+      .dash-card { background: var(--card-bg); border-radius: var(--radius); padding: 20px; box-shadow: var(--card-shadow); }
+      .dash-card-title { font-family: 'Noto Serif SC', serif; font-size: 0.95rem; font-weight: 700; color: var(--ink); margin-bottom: 16px; }
+
+      /* Pie Chart */
+      .dash-pie-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+      .dash-pie { width: 140px; height: 140px; border-radius: 50%; position: relative; }
+      .dash-pie-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+      .dash-pie-value { font-size: 1.5rem; font-weight: 700; color: var(--ink); line-height: 1; }
+      .dash-pie-label { font-size: 0.7rem; color: var(--ink-faint); margin-top: 2px; }
+      .dash-pie-legend { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+      .dash-pie-legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--ink-light); }
+      .dash-pie-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+      /* Timeline */
+      .dash-timeline { display: flex; align-items: center; gap: 4px; overflow-x: auto; padding-bottom: 8px; }
+      .dash-tl-item { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+      .dash-tl-node { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 80px; }
+      .dash-tl-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border-light); background: #fff; position: relative; }
+      .dash-tl-dot.completed { background: var(--green); border-color: var(--green); }
+      .dash-tl-dot.active { background: var(--blue); border-color: var(--blue); box-shadow: 0 0 0 3px rgba(43,127,216,0.2); }
+      .dash-tl-dot.lag { background: var(--red); border-color: var(--red); }
+      .dash-tl-dot.pending { background: var(--ink-faint); border-color: var(--border-light); }
+      .dash-tl-name { font-size: 0.78rem; font-weight: 600; color: var(--ink); white-space: nowrap; }
+      .dash-tl-status { font-size: 0.7rem; color: var(--ink-faint); white-space: nowrap; }
+      .dash-tl-line { width: 28px; height: 2px; background: var(--border-light); flex-shrink: 0; }
+      .dash-tl-line.completed { background: var(--green); }
+      .dash-tl-line.active { background: var(--blue); }
+
+      /* Activity Section */
+      .dash-activity-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+      @media (max-width: 900px) { .dash-activity-grid { grid-template-columns: 1fr; } }
+
+      .dash-activity-card { background: var(--card-bg); border-radius: var(--radius); padding: 16px; box-shadow: var(--card-shadow); }
+      .dash-activity-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+      .dash-activity-title { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
+      .dash-activity-count { font-size: 0.7rem; color: var(--ink-faint); background: var(--cream-deep); padding: 2px 8px; border-radius: 10px; }
+
+      .dash-activity-list { display: flex; flex-direction: column; gap: 10px; }
+      .dash-activity-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: var(--radius-sm); background: var(--cream); transition: var(--transition); }
+      .dash-activity-item:hover { background: var(--blue-light); }
+      .dash-activity-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; }
+      .dash-activity-body { flex: 1; min-width: 0; }
+      .dash-activity-text { font-size: 0.8rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .dash-activity-meta { font-size: 0.72rem; color: var(--ink-faint); margin-top: 2px; }
+      .dash-activity-amount { font-size: 0.8rem; font-weight: 600; color: var(--red); flex-shrink: 0; }
+      .dash-activity-amount.income { color: var(--green); }
+
+      .dash-photo-thumb { width: 48px; height: 48px; border-radius: var(--radius-sm); background: var(--cream-deep); object-fit: cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+
+      .dash-todo-overdue { color: var(--red); font-size: 0.7rem; font-weight: 600; margin-left: 4px; }
+
+      /* Report Modal */
+      .dash-report-content { background: #fff; border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 16px; font-family: 'Noto Sans SC', sans-serif; font-size: 0.85rem; line-height: 1.7; white-space: pre-wrap; max-height: 60vh; overflow-y: auto; }
+      .dash-report-content h1 { font-family: 'Noto Serif SC', serif; font-size: 1.2rem; margin-bottom: 12px; color: var(--ink); }
+      .dash-report-content h2 { font-family: 'Noto Serif SC', serif; font-size: 1rem; margin-top: 16px; margin-bottom: 8px; color: var(--ink); border-bottom: 1px solid var(--border-light); padding-bottom: 4px; }
+      .dash-report-content ul { margin: 8px 0; padding-left: 20px; }
+      .dash-report-content li { margin: 4px 0; }
+      .dash-report-content strong { color: var(--blue); }
+
+      /* Empty state inside dashboard */
+      .dash-empty { text-align: center; padding: 20px; color: var(--ink-faint); font-size: 0.8rem; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // ==================== DATA HELPERS ====================
+
+  function getBudgetData() {
+    return App.getData('budget') || { totalBudget: 0, items: [], payments: [] };
+  }
+
+  function getProgressData() {
+    return App.getData('progress') || { phases: [], currentPhaseId: null };
+  }
+
+  function getCommunicationsData() {
+    return App.getData('communications') || { records: [] };
+  }
+
+  function getDocumentsData() {
+    return App.getData('documents') || { documents: [] };
+  }
+
+  function formatCurrency(n) {
+    if (n === undefined || n === null) return '¥0';
+    return '¥' + Number(n).toLocaleString('zh-CN');
+  }
+
+  function formatDate(d) {
+    if (!d) return '';
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return d;
+    return (date.getMonth() + 1) + '/' + date.getDate();
+  }
+
+  function formatDateFull(d) {
+    if (!d) return '';
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return d;
+    return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  }
+
+  function isOverdue(deadline) {
+    if (!deadline) return false;
+    const d = new Date(deadline);
+    if (isNaN(d.getTime())) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return d < today;
+  }
+
+  function daysDiff(a, b) {
+    const da = new Date(a);
+    const db = new Date(b);
+    if (isNaN(da.getTime()) || isNaN(db.getTime())) return 0;
+    return Math.round((db - da) / (1000 * 60 * 60 * 24));
+  }
+
+  // ==================== STAT CARD BUILDERS ====================
+
+  function buildStatCards(container) {
+    const budget = getBudgetData();
+    const progress = getProgressData();
+    const comm = getCommunicationsData();
+    const docs = getDocumentsData();
+
+    // 1. Current Phase
+    let currentPhaseName = '未开始';
+    let currentPhaseSub = '';
+    const currentPhase = progress.phases.find(p => p.id === progress.currentPhaseId);
+    if (currentPhase) {
+      currentPhaseName = currentPhase.name;
+      if (currentPhase.status === '进行中') {
+        const lagDays = currentPhase.plannedEnd && currentPhase.actualStart
+          ? daysDiff(currentPhase.plannedEnd, new Date().toISOString())
+          : 0;
+        if (lagDays > 0) {
+          currentPhaseSub = '进行中，滞后 ' + lagDays + ' 天';
+        } else {
+          currentPhaseSub = '进行中';
+        }
+      } else {
+        currentPhaseSub = currentPhase.status || '';
+      }
+    }
+
+    // 2. Budget usage
+    let totalSpent = 0;
+    let totalBudget = budget.totalBudget || 0;
+    (budget.payments || []).forEach(p => { totalSpent += Number(p.amount) || 0; });
+    const budgetUsage = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+
+    // 3. Over-budget items
+    let overBudgetCount = 0;
+    (budget.items || []).forEach(item => {
+      const actual = Number(item.actual) || 0;
+      const planned = Number(item.budget) || 0;
+      if (planned > 0 && actual > planned) overBudgetCount++;
+    });
+
+    // 4. Todos
+    let totalTodos = 0;
+    let overdueTodos = 0;
+    (comm.records || []).forEach(r => {
+      (r.todos || []).forEach(t => {
+        totalTodos++;
+        if (t.status !== '已完成' && isOverdue(t.deadline)) overdueTodos++;
+      });
+    });
+
+    // 5. Photos
+    const photoCount = (docs.documents || []).filter(d => d.type && d.type.startsWith('image/')).length;
+
+    // 6. Communication records
+    const commCount = (comm.records || []).length;
+
+    const stats = [
+      { label: '当前阶段', value: currentPhaseName, sub: currentPhaseSub, cls: '' },
+      { label: '总预算使用率', value: budgetUsage + '%', sub: '已支出 ' + formatCurrency(totalSpent), cls: budgetUsage > 90 ? 'danger' : (budgetUsage > 70 ? 'warning' : '') },
+      { label: '超支项目数', value: String(overBudgetCount), sub: overBudgetCount > 0 ? '需关注' : '一切正常', cls: overBudgetCount > 0 ? 'danger' : 'success' },
+      { label: '待办事项', value: String(totalTodos), sub: overdueTodos > 0 ? overdueTodos + ' 项逾期' : '无逾期', cls: overdueTodos > 0 ? 'danger' : '' },
+      { label: '已上传照片', value: String(photoCount), sub: '张', cls: '' },
+      { label: '沟通记录', value: String(commCount), sub: '次', cls: '' }
+    ];
+
+    const grid = document.createElement('div');
+    grid.className = 'dash-stats-grid';
+
+    stats.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'stat-card';
+      card.innerHTML = `
+        <div class="stat-value ${s.cls}">${s.value}</div>
+        <div class="stat-label">${s.label}</div>
+        <div class="stat-sublabel">${s.sub}</div>
+      `;
+      grid.appendChild(card);
+    });
+
+    container.appendChild(grid);
+  }
+
+  // ==================== BUDGET PIE CHART ====================
+
+  function buildBudgetPie(container) {
+    const budget = getBudgetData();
+    const totalBudget = budget.totalBudget || 0;
+
+    let totalSpent = 0;
+    let totalOver = 0;
+    (budget.payments || []).forEach(p => { totalSpent += Number(p.amount) || 0; });
+    (budget.items || []).forEach(item => {
+      const actual = Number(item.actual) || 0;
+      const planned = Number(item.budget) || 0;
+      if (actual > planned) totalOver += (actual - planned);
+    });
+
+    const remaining = Math.max(0, totalBudget - totalSpent);
+    const usage = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+
+    // conic-gradient angles
+    const total = totalSpent + remaining + totalOver;
+    let spentDeg = 0, remainDeg = 0, overDeg = 0;
+    if (total > 0) {
+      spentDeg = (totalSpent / total) * 360;
+      remainDeg = (remaining / total) * 360;
+      overDeg = (totalOver / total) * 360;
+    }
+
+    const gradParts = [];
+    let currentAngle = 0;
+    if (spentDeg > 0) {
+      gradParts.push(`#2B7FD8 ${currentAngle}deg ${currentAngle + spentDeg}deg`);
+      currentAngle += spentDeg;
+    }
+    if (remainDeg > 0) {
+      gradParts.push(`#e5e7eb ${currentAngle}deg ${currentAngle + remainDeg}deg`);
+      currentAngle += remainDeg;
+    }
+    if (overDeg > 0) {
+      gradParts.push(`#E84A5F ${currentAngle}deg ${currentAngle + overDeg}deg`);
+    }
+
+    const gradient = gradParts.length > 0
+      ? `conic-gradient(${gradParts.join(', ')})`
+      : 'conic-gradient(#e5e7eb 0deg 360deg)';
+
+    const card = document.createElement('div');
+    card.className = 'dash-card';
+
+    const title = document.createElement('div');
+    title.className = 'dash-card-title';
+    title.textContent = '💰 预算概览';
+    card.appendChild(title);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'dash-pie-wrap';
+
+    const pie = document.createElement('div');
+    pie.className = 'dash-pie';
+    pie.style.background = gradient;
+
+    const center = document.createElement('div');
+    center.className = 'dash-pie-center';
+    center.innerHTML = `
+      <div class="dash-pie-value">${usage}%</div>
+      <div class="dash-pie-label">已使用</div>
+    `;
+    pie.appendChild(center);
+    wrap.appendChild(pie);
+
+    const legend = document.createElement('div');
+    legend.className = 'dash-pie-legend';
+    legend.innerHTML = `
+      <div class="dash-pie-legend-item"><span class="dash-pie-dot" style="background:#2B7FD8"></span>已支出 ${formatCurrency(totalSpent)}</div>
+      <div class="dash-pie-legend-item"><span class="dash-pie-dot" style="background:#e5e7eb"></span>剩余 ${formatCurrency(remaining)}</div>
+      ${totalOver > 0 ? `<div class="dash-pie-legend-item"><span class="dash-pie-dot" style="background:#E84A5F"></span>超支 ${formatCurrency(totalOver)}</div>` : ''}
+    `;
+    wrap.appendChild(legend);
+
+    card.appendChild(wrap);
+    container.appendChild(card);
+  }
+
+  // ==================== PROGRESS TIMELINE ====================
+
+  function buildProgressTimeline(container) {
+    const progress = getProgressData();
+    const phases = progress.phases || [];
+    const phaseOrder = ['拆除', '水电', '泥瓦', '木工', '油漆', '安装'];
+
+    const card = document.createElement('div');
+    card.className = 'dash-card';
+
+    const title = document.createElement('div');
+    title.className = 'dash-card-title';
+    title.textContent = '📅 装修进度';
+    card.appendChild(title);
+
+    const timeline = document.createElement('div');
+    timeline.className = 'dash-timeline';
+
+    phaseOrder.forEach((name, idx) => {
+      const phase = phases.find(p => p.name === name);
+      let status = '未开始';
+      let dotClass = 'pending';
+      let lineClass = '';
+
+      if (phase) {
+        status = phase.status || '未开始';
+        if (status === '已完成') dotClass = 'completed';
+        else if (status === '进行中') {
+          const isLag = phase.plannedEnd && daysDiff(phase.plannedEnd, new Date().toISOString()) > 0;
+          dotClass = isLag ? 'lag' : 'active';
+          if (isLag) status = '滞后';
+        }
+      }
+
+      const item = document.createElement('div');
+      item.className = 'dash-tl-item';
+
+      const node = document.createElement('div');
+      node.className = 'dash-tl-node';
+      node.innerHTML = `
+        <div class="dash-tl-dot ${dotClass}"></div>
+        <div class="dash-tl-name">${name}</div>
+        <div class="dash-tl-status">${status}</div>
+      `;
+      item.appendChild(node);
+
+      if (idx < phaseOrder.length - 1) {
+        const line = document.createElement('div');
+        line.className = 'dash-tl-line ' + (dotClass === 'completed' || dotClass === 'active' ? 'completed' : '');
+        item.appendChild(line);
+      }
+
+      timeline.appendChild(item);
+    });
+
+    card.appendChild(timeline);
+    container.appendChild(card);
+  }
+
+  // ==================== RECENT ACTIVITY ====================
+
+  function buildRecentActivity(container) {
+    const budget = getBudgetData();
+    const docs = getDocumentsData();
+    const comm = getCommunicationsData();
+
+    const grid = document.createElement('div');
+    grid.className = 'dash-activity-grid';
+
+    // 1. Recent payments
+    const paymentsCard = document.createElement('div');
+    paymentsCard.className = 'dash-activity-card';
+    const recentPayments = (budget.payments || []).slice().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 3);
+    paymentsCard.innerHTML = `
+      <div class="dash-activity-header">
+        <span class="dash-activity-title">💸 近期支出</span>
+        <span class="dash-activity-count">${recentPayments.length}</span>
+      </div>
+      <div class="dash-activity-list" id="dash-payments-list"></div>
+    `;
+    const paymentsList = paymentsCard.querySelector('#dash-payments-list');
+    if (recentPayments.length === 0) {
+      paymentsList.innerHTML = '<div class="dash-empty">暂无支出记录</div>';
+    } else {
+      recentPayments.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'dash-activity-item';
+        const itemName = (budget.items || []).find(i => i.id === p.itemId)?.name || '未分类';
+        item.innerHTML = `
+          <span class="dash-activity-icon">💸</span>
+          <div class="dash-activity-body">
+            <div class="dash-activity-text">${itemName}</div>
+            <div class="dash-activity-meta">${formatDate(p.date)}</div>
+          </div>
+          <span class="dash-activity-amount">-${formatCurrency(p.amount)}</span>
+        `;
+        paymentsList.appendChild(item);
+      });
+    }
+    grid.appendChild(paymentsCard);
+
+    // 2. Recent photos
+    const photosCard = document.createElement('div');
+    photosCard.className = 'dash-activity-card';
+    const recentPhotos = (docs.documents || []).filter(d => d.type && d.type.startsWith('image/')).slice().sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0)).slice(0, 3);
+    photosCard.innerHTML = `
+      <div class="dash-activity-header">
+        <span class="dash-activity-title">📷 最新照片</span>
+        <span class="dash-activity-count">${recentPhotos.length}</span>
+      </div>
+      <div class="dash-activity-list" id="dash-photos-list"></div>
+    `;
+    const photosList = photosCard.querySelector('#dash-photos-list');
+    if (recentPhotos.length === 0) {
+      photosList.innerHTML = '<div class="dash-empty">暂无照片</div>';
+    } else {
+      recentPhotos.forEach(d => {
+        const item = document.createElement('div');
+        item.className = 'dash-activity-item';
+        item.innerHTML = `
+          <div class="dash-photo-thumb">📷</div>
+          <div class="dash-activity-body">
+            <div class="dash-activity-text">${d.name || '未命名'}</div>
+            <div class="dash-activity-meta">${formatDate(d.uploadedAt)} · ${d.category || '未分类'}</div>
+          </div>
+        `;
+        photosList.appendChild(item);
+      });
+    }
+    grid.appendChild(photosCard);
+
+    // 3. Recent todos
+    const todosCard = document.createElement('div');
+    todosCard.className = 'dash-activity-card';
+    let allTodos = [];
+    (comm.records || []).forEach(r => {
+      (r.todos || []).forEach(t => {
+        allTodos.push({ ...t, recordTitle: r.title, recordDate: r.date });
+      });
+    });
+    allTodos = allTodos.filter(t => t.status !== '已完成').sort((a, b) => {
+      const aOver = isOverdue(a.deadline) ? 1 : 0;
+      const bOver = isOverdue(b.deadline) ? 1 : 0;
+      if (aOver !== bOver) return bOver - aOver;
+      return new Date(a.deadline || 0) - new Date(b.deadline || 0);
+    }).slice(0, 3);
+
+    todosCard.innerHTML = `
+      <div class="dash-activity-header">
+        <span class="dash-activity-title">✅ 待办提醒</span>
+        <span class="dash-activity-count">${allTodos.length}</span>
+      </div>
+      <div class="dash-activity-list" id="dash-todos-list"></div>
+    `;
+    const todosList = todosCard.querySelector('#dash-todos-list');
+    if (allTodos.length === 0) {
+      todosList.innerHTML = '<div class="dash-empty">暂无待办，太棒了！</div>';
+    } else {
+      allTodos.forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'dash-activity-item';
+        const overdue = isOverdue(t.deadline);
+        item.innerHTML = `
+          <span class="dash-activity-icon">${overdue ? '🔴' : '⏳'}</span>
+          <div class="dash-activity-body">
+            <div class="dash-activity-text">${t.content || '未命名待办'}${overdue ? '<span class="dash-todo-overdue">逾期</span>' : ''}</div>
+            <div class="dash-activity-meta">${t.recordTitle || ''} · 截止 ${formatDate(t.deadline)}</div>
+          </div>
+        `;
+        todosList.appendChild(item);
+      });
+    }
+    grid.appendChild(todosCard);
+
+    container.appendChild(grid);
+  }
+
+  // ==================== WEEKLY REPORT ====================
+
+  function generateWeeklyReport() {
+    const budget = getBudgetData();
+    const progress = getProgressData();
+    const comm = getCommunicationsData();
+    const docs = getDocumentsData();
+
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const weekRange = formatDateFull(weekStart) + ' ~ ' + formatDateFull(weekEnd);
+
+    // Budget stats
+    let totalSpent = 0;
+    let weekSpent = 0;
+    (budget.payments || []).forEach(p => {
+      const amt = Number(p.amount) || 0;
+      totalSpent += amt;
+      const pd = new Date(p.date || 0);
+      if (pd >= weekStart && pd <= weekEnd) weekSpent += amt;
+    });
+    const totalBudget = budget.totalBudget || 0;
+    const usage = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+
+    // Over-budget items
+    const overItems = (budget.items || []).filter(item => {
+      const actual = Number(item.actual) || 0;
+      const planned = Number(item.budget) || 0;
+      return planned > 0 && actual > planned;
+    });
+
+    // Phase status
+    const currentPhase = progress.phases.find(p => p.id === progress.currentPhaseId);
+    const completedPhases = (progress.phases || []).filter(p => p.status === '已完成').length;
+
+    // Weekly records
+    const weekRecords = (comm.records || []).filter(r => {
+      const rd = new Date(r.date || 0);
+      return rd >= weekStart && rd <= weekEnd;
+    });
+
+    // Weekly photos
+    const weekPhotos = (docs.documents || []).filter(d => {
+      if (!d.type || !d.type.startsWith('image/')) return false;
+      const ud = new Date(d.uploadedAt || 0);
+      return ud >= weekStart && ud <= weekEnd;
+    });
+
+    // Todos
+    let totalTodos = 0;
+    let doneTodos = 0;
+    let overdueTodos = 0;
+    (comm.records || []).forEach(r => {
+      (r.todos || []).forEach(t => {
+        totalTodos++;
+        if (t.status === '已完成') doneTodos++;
+        else if (isOverdue(t.deadline)) overdueTodos++;
+      });
+    });
+
+    let md = `# 🏠 装修周报 — ${App.config.projectName || '我们的家'}\n`;
+    md += `**报告周期：** ${weekRange}\n\n`;
+    md += `---\n\n`;
+
+    md += `## 📊 本周概览\n\n`;
+    md += `- **当前阶段：** ${currentPhase ? currentPhase.name + '（' + (currentPhase.status || '未开始') + '）' : '未开始'}\n`;
+    md += `- **已完成阶段：** ${completedPhases} / 6\n`;
+    md += `- **本周支出：** ${formatCurrency(weekSpent)}\n`;
+    md += `- **累计支出：** ${formatCurrency(totalSpent)} / ${formatCurrency(totalBudget)}（${usage}%）\n`;
+    md += `- **超支项目：** ${overItems.length} 项\n`;
+    md += `- **待办进度：** ${doneTodos} / ${totalTodos} 已完成${overdueTodos > 0 ? '，' + overdueTodos + ' 项逾期' : ''}\n`;
+    md += `- **本周沟通：** ${weekRecords.length} 次记录\n`;
+    md += `- **本周照片：** ${weekPhotos.length} 张上传\n\n`;
+
+    md += `---\n\n`;
+
+    md += `## 💰 预算详情\n\n`;
+    if ((budget.items || []).length === 0) {
+      md += `> 暂无预算项目数据。\n\n`;
+    } else {
+      md += `| 项目 | 预算 | 实际 | 状态 |\n`;
+      md += `|------|------|------|------|\n`;
+      (budget.items || []).forEach(item => {
+        const planned = Number(item.budget) || 0;
+        const actual = Number(item.actual) || 0;
+        const status = actual > planned ? '🔴 超支' : (actual > 0 ? '🟢 正常' : '⚪ 未开始');
+        md += `| ${item.name || '未命名'} | ${formatCurrency(planned)} | ${formatCurrency(actual)} | ${status} |\n`;
+      });
+      md += `\n`;
+    }
+
+    md += `---\n\n`;
+
+    md += `## 📅 进度时间轴\n\n`;
+    const phaseOrder = ['拆除', '水电', '泥瓦', '木工', '油漆', '安装'];
+    phaseOrder.forEach(name => {
+      const phase = progress.phases.find(p => p.name === name);
+      if (!phase) {
+        md += `- **${name}：** 未开始\n`;
+      } else {
+        const icon = phase.status === '已完成' ? '✅' : (phase.status === '进行中' ? '🔵' : '⚪');
+        md += `- **${name}：** ${icon} ${phase.status || '未开始'}`;
+        if (phase.plannedStart && phase.plannedEnd) {
+          md += `（计划 ${formatDate(phase.plannedStart)} ~ ${formatDate(phase.plannedEnd)}）`;
+        }
+        md += `\n`;
+      }
+    });
+    md += `\n`;
+
+    md += `---\n\n`;
+
+    md += `## 💬 本周沟通记录\n\n`;
+    if (weekRecords.length === 0) {
+      md += `> 本周暂无沟通记录。\n\n`;
+    } else {
+      weekRecords.forEach(r => {
+        md += `### ${r.title || '未命名记录'} — ${formatDate(r.date)}\n\n`;
+        if (r.summary) md += `${r.summary}\n\n`;
+        if ((r.todos || []).length > 0) {
+          md += `**待办：**\n`;
+          r.todos.forEach(t => {
+            const check = t.status === '已完成' ? '[x]' : '[ ]';
+            const over = t.status !== '已完成' && isOverdue(t.deadline) ? ' 🔴逾期' : '';
+            md += `- ${check} ${t.content || ''}${over}\n`;
+          });
+          md += `\n`;
+        }
+      });
+    }
+
+    md += `---\n\n`;
+
+    md += `## ✅ 待办清单\n\n`;
+    if (totalTodos === 0) {
+      md += `> 暂无待办事项。\n\n`;
+    } else {
+      (comm.records || []).forEach(r => {
+        const undone = (r.todos || []).filter(t => t.status !== '已完成');
+        if (undone.length > 0) {
+          md += `**${r.title || '未命名记录'}**\n`;
+          undone.forEach(t => {
+            const over = isOverdue(t.deadline) ? ' 🔴逾期' : '';
+            md += `- [ ] ${t.content || ''}（截止 ${formatDate(t.deadline)}）${over}\n`;
+          });
+          md += `\n`;
+        }
+      });
+    }
+
+    md += `---\n\n`;
+    md += `*由 装修指挥官 自动生成 · ${formatDateFull(new Date())}*`;
+
+    return md;
+  }
+
+  function showReportModal() {
+    const md = generateWeeklyReport();
+    const overlay = document.getElementById('modalOverlay');
+    const content = document.getElementById('modalContent');
+
+    content.innerHTML = `
+      <div class="modal-header">
+        <div class="modal-title">📄 本周周报</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="dash-report-content">${escapeHtml(md)}</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
+        <button class="btn btn-primary" id="btnCopyReport">📋 复制 Markdown</button>
+      </div>
+    `;
+    overlay.classList.add('show');
+
+    document.getElementById('btnCopyReport').addEventListener('click', () => {
+      navigator.clipboard.writeText(md).then(() => {
+        App.showToast('周报已复制到剪贴板', 'success');
+      }).catch(() => {
+        App.showToast('复制失败，请手动复制', 'error');
+      });
+    });
+  }
+
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  // ==================== RENDER ====================
+
+  function render() {
+    const container = document.getElementById('dashboard-content');
+    if (!container) return;
+    container.innerHTML = '';
+
+    injectStyles();
+
+    // Section 1: Stat Cards
+    const statsSection = document.createElement('div');
+    statsSection.className = 'dash-section';
+    buildStatCards(statsSection);
+    container.appendChild(statsSection);
+
+    // Section 2: Budget Pie + Progress Timeline
+    const row2 = document.createElement('div');
+    row2.className = 'dash-row-2 dash-section';
+    buildBudgetPie(row2);
+    buildProgressTimeline(row2);
+    container.appendChild(row2);
+
+    // Section 3: Recent Activity
+    const activitySection = document.createElement('div');
+    activitySection.className = 'dash-section';
+    const activityTitle = document.createElement('div');
+    activityTitle.className = 'dash-section-title';
+    activityTitle.textContent = '🔔 近期动态';
+    activitySection.appendChild(activityTitle);
+    buildRecentActivity(activitySection);
+    container.appendChild(activitySection);
+  }
+
+  // ==================== INIT ====================
+
+  function init() {
+    // Bind report button
+    const btn = document.getElementById('btnGenerateReport');
+    if (btn) {
+      btn.addEventListener('click', showReportModal);
+    }
+  }
+
+  // ==================== MODULE REGISTRATION ====================
+
+  registerModule('dashboard', {
+    name: '总览',
+    init: init,
+    render: render,
+    onShow: function() { this.render(); },
+    onHide: function() {},
+    setData: function(d) { data = d; }
+  });
+})();
+
+</script>
+
+<!-- ====== DOCUMENTS.JS ====== -->
+<script>
+// Documents Module
+(function() {
+  let data = { version: '1.0', updatedAt: new Date().toISOString(), documents: [], categories: ['合同', '报价单', '设计图', '收据', '其他'] };
+  let filteredDocs = [];
+  let currentFilter = { category: 'all', tag: 'all', search: '', sort: 'date-desc' };
+  let allTags = new Set();
+
+  // ========== UTILITIES ==========
+
+  function generateId() {
+    return 'doc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+  }
+
+  function formatSize(bytes) {
+    if (bytes === 0 || !bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const k = 1024;
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + units[i];
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '--';
+    const d = new Date(iso);
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return m + '-' + day;
+  }
+
+  function formatDateTime(iso) {
+    if (!iso) return '--';
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return y + '-' + m + '-' + day + ' ' + h + ':' + min;
+  }
+
+  function getUploaderName(userId) {
+    const user = window.App.users.find(u => u.id === userId);
+    return user ? user.avatar + user.name : userId;
+  }
+
+  function getFileIcon(type) {
+    const map = {
+      pdf: '📄', jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️',
+      doc: '📝', docx: '📝', xls: '📊', xlsx: '📊'
+    };
+    return map[(type || '').toLowerCase()] || '📎';
+  }
+
+  function updateAllTags() {
+    allTags.clear();
+    (data.documents || []).forEach(doc => {
+      (doc.tags || []).forEach(tag => allTags.add(tag));
+    });
+  }
+
+  function getAllTags() {
+    return Array.from(allTags).sort();
+  }
+
+  function getAcceptedTypes() {
+    return '.pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.xls,.xlsx';
+  }
+
+  function getFileExtension(filename) {
+    return filename.split('.').pop().toLowerCase();
+  }
+
+  function isImageType(type) {
+    return ['jpg', 'jpeg', 'png', 'gif'].includes((type || '').toLowerCase());
+  }
+
+  function isPdfType(type) {
+    return (type || '').toLowerCase() === 'pdf';
+  }
+
+  // ========== FILE SYSTEM ==========
+
+  async function saveFileToDisk(file, category, fileName) {
+    const dirHandle = window.App.dirHandle;
+    if (!dirHandle) {
+      window.App.showToast('未选择项目文件夹，无法保存文件', 'error');
+      return false;
+    }
+    try {
+      const filesDir = await dirHandle.getDirectoryHandle('files', { create: true });
+      const catDir = await filesDir.getDirectoryHandle(category, { create: true });
+      const fileHandle = await catDir.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(file);
+      await writable.close();
+      return true;
+    } catch (e) {
+      console.error('Save file failed:', e);
+      window.App.showToast('文件保存失败: ' + e.message, 'error');
+      return false;
+    }
+  }
+
+  async function getFileFromDisk(fileName) {
+    const dirHandle = window.App.dirHandle;
+    if (!dirHandle) return null;
+    try {
+      const parts = fileName.split('/');
+      let current = dirHandle;
+      for (let i = 0; i < parts.length; i++) {
+        if (i === parts.length - 1) {
+          const fileHandle = await current.getFileHandle(parts[i]);
+          return await fileHandle.getFile();
+        } else {
+          current = await current.getDirectoryHandle(parts[i]);
+        }
+      }
+      return null;
+    } catch (e) {
+      console.error('Read file failed:', e);
+      return null;
+    }
+  }
+
+  // ========== UPLOAD ==========
+
+  function handleUploadClick() {
+    let input = document.getElementById('docUploadInput');
+    if (!input) {
+      input = document.createElement('input');
+      input.type = 'file';
+      input.id = 'docUploadInput';
+      input.multiple = true;
+      input.accept = getAcceptedTypes();
+      input.style.display = 'none';
+      input.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          handleFileSelect(e.target.files);
+        }
+        e.target.value = '';
+      });
+      document.body.appendChild(input);
+    }
+    input.click();
+  }
+
+  async function handleFileSelect(files) {
+    const docs = data.documents || [];
+    let successCount = 0;
+    let warnCount = 0;
+
+    for (const file of files) {
+      const ext = getFileExtension(file.name);
+      const accepted = getAcceptedTypes().split(',').map(s => s.replace('.', '').trim());
+      if (!accepted.includes(ext)) {
+        window.App.showToast('不支持的文件格式: ' + file.name, 'warning');
+        continue;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        window.App.showToast('文件 "' + file.name + '" 超过 5MB，建议压缩后上传', 'warning');
+        warnCount++;
+      }
+
+      const category = data.categories[0]; // 默认第一个分类
+      const safeName = file.name.replace(/[^\w\u4e00-\u9fa5.\-]/g, '_');
+      const fileName = category + '/' + safeName;
+
+      const saved = await saveFileToDisk(file, category, safeName);
+      if (!saved) continue;
+
+      const doc = {
+        id: generateId(),
+        name: file.name.replace(/\.[^.]+$/, ''),
+        fileName: fileName,
+        type: ext,
+        category: category,
+        tags: [],
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: window.App.currentUser.id,
+        size: file.size,
+        note: ''
+      };
+      docs.push(doc);
+      successCount++;
+    }
+
+    if (successCount > 0) {
+      data.documents = docs;
+      data.updatedAt = new Date().toISOString();
+      window.App.setData('documents', data);
+      updateAllTags();
+      applyFilters();
+      window.App.showToast('成功上传 ' + successCount + ' 个文件' + (warnCount > 0 ? '（' + warnCount + ' 个大文件）' : ''), 'success');
+    }
+  }
+
+  // ========== FILTER & SORT ==========
+
+  function applyFilters() {
+    let docs = data.documents || [];
+
+    // Category filter
+    if (currentFilter.category !== 'all') {
+      docs = docs.filter(d => d.category === currentFilter.category);
+    }
+
+    // Tag filter
+    if (currentFilter.tag !== 'all') {
+      docs = docs.filter(d => (d.tags || []).includes(currentFilter.tag));
+    }
+
+    // Search filter
+    if (currentFilter.search) {
+      const s = currentFilter.search.toLowerCase();
+      docs = docs.filter(d => {
+        return (d.name || '').toLowerCase().includes(s) ||
+               (d.note || '').toLowerCase().includes(s) ||
+               (d.tags || []).some(t => t.toLowerCase().includes(s));
+      });
+    }
+
+    // Sort
+    const sort = currentFilter.sort || 'date-desc';
+    docs = docs.slice().sort((a, b) => {
+      switch (sort) {
+        case 'date-desc': return new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0);
+        case 'date-asc': return new Date(a.uploadedAt || 0) - new Date(b.uploadedAt || 0);
+        case 'name-asc': return (a.name || '').localeCompare(b.name || '', 'zh');
+        case 'name-desc': return (b.name || '').localeCompare(a.name || '', 'zh');
+        case 'size-desc': return (b.size || 0) - (a.size || 0);
+        case 'size-asc': return (a.size || 0) - (b.size || 0);
+        default: return 0;
+      }
+    });
+
+    filteredDocs = docs;
+  }
+
+  // ========== RENDER ==========
+
+  function render() {
+    const container = document.getElementById('documents-content');
+    if (!container) return;
+
+    applyFilters();
+
+    const allTagsList = getAllTags();
+    const categories = data.categories || [];
+
+    let html = `
+      <div class="filter-bar">
+        <select class="app-input app-select" id="docFilterCategory" style="min-width:100px">
+          <option value="all">全部分类</option>
+          ${categories.map(c => `<option value="${escapeHtml(c)}" ${currentFilter.category === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+        </select>
+        <select class="app-input app-select" id="docFilterTag" style="min-width:100px">
+          <option value="all">全部标签</option>
+          ${allTagsList.map(t => `<option value="${escapeHtml(t)}" ${currentFilter.tag === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}
+        </select>
+        <select class="app-input app-select" id="docSort" style="min-width:120px">
+          <option value="date-desc" ${currentFilter.sort === 'date-desc' ? 'selected' : ''}>日期 ↓</option>
+          <option value="date-asc" ${currentFilter.sort === 'date-asc' ? 'selected' : ''}>日期 ↑</option>
+          <option value="name-asc" ${currentFilter.sort === 'name-asc' ? 'selected' : ''}>名称 A-Z</option>
+          <option value="name-desc" ${currentFilter.sort === 'name-desc' ? 'selected' : ''}>名称 Z-A</option>
+          <option value="size-desc" ${currentFilter.sort === 'size-desc' ? 'selected' : ''}>大小 ↓</option>
+          <option value="size-asc" ${currentFilter.sort === 'size-asc' ? 'selected' : ''}>大小 ↑</option>
+        </select>
+        <div style="flex:1"></div>
+        <input type="text" class="app-input" id="docSearch" placeholder="🔍 搜索文件..." value="${escapeHtml(currentFilter.search)}" style="max-width:240px">
+      </div>
+    `;
+
+    if (filteredDocs.length === 0) {
+      html += `
+        <div class="empty-state">
+          <div class="empty-state-icon">📁</div>
+          <div class="empty-state-text">暂无文件</div>
+          <button class="btn btn-primary btn-sm" id="btnUploadEmpty">+ 上传文件</button>
+        </div>
+      `;
+    } else {
+      html += `
+        <div style="overflow-x:auto">
+          <table class="data-table" id="docTable">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>类型</th>
+                <th>分类</th>
+                <th>标签</th>
+                <th>日期</th>
+                <th>上传者</th>
+                <th>大小</th>
+                <th style="text-align:center;width:100px">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredDocs.map(doc => renderDocRow(doc)).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    container.innerHTML = html;
+    bindFilterEvents();
+    bindRowEvents();
+  }
+
+  function renderDocRow(doc) {
+    const tagsHtml = (doc.tags || []).map(t => `<span class="badge badge-gray">${escapeHtml(t)}</span>`).join(' ');
+    return `
+      <tr data-doc-id="${doc.id}">
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:1.1rem">${getFileIcon(doc.type)}</span>
+            <span style="font-weight:500">${escapeHtml(doc.name)}</span>
+          </div>
+        </td>
+        <td><span class="badge badge-blue">${(doc.type || '').toUpperCase()}</span></td>
+        <td>${escapeHtml(doc.category || '')}</td>
+        <td>${tagsHtml || '<span style="color:var(--ink-faint)">-</span>'}</td>
+        <td>${formatDate(doc.uploadedAt)}</td>
+        <td>${getUploaderName(doc.uploadedBy)}</td>
+        <td>${formatSize(doc.size)}</td>
+        <td style="text-align:center">
+          <button class="btn-icon doc-action-preview" title="预览" data-id="${doc.id}">👁</button>
+          <button class="btn-icon doc-action-download" title="下载" data-id="${doc.id}">⬇️</button>
+          <button class="btn-icon doc-action-edit" title="编辑" data-id="${doc.id}">✏️</button>
+          <button class="btn-icon doc-action-delete" title="删除" data-id="${doc.id}">🗑</button>
+        </td>
+      </tr>
+    `;
+  }
+
+  function bindFilterEvents() {
+    const cat = document.getElementById('docFilterCategory');
+    const tag = document.getElementById('docFilterTag');
+    const sort = document.getElementById('docSort');
+    const search = document.getElementById('docSearch');
+    const uploadEmpty = document.getElementById('btnUploadEmpty');
+
+    if (cat) cat.addEventListener('change', (e) => { currentFilter.category = e.target.value; applyFilters(); renderTable(); });
+    if (tag) tag.addEventListener('change', (e) => { currentFilter.tag = e.target.value; applyFilters(); renderTable(); });
+    if (sort) sort.addEventListener('change', (e) => { currentFilter.sort = e.target.value; applyFilters(); renderTable(); });
+    if (search) {
+      search.addEventListener('input', (e) => { currentFilter.search = e.target.value; applyFilters(); renderTable(); });
+    }
+    if (uploadEmpty) uploadEmpty.addEventListener('click', handleUploadClick);
+  }
+
+  function bindRowEvents() {
+    document.querySelectorAll('.doc-action-preview').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); previewDoc(btn.dataset.id); });
+    });
+    document.querySelectorAll('.doc-action-download').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); downloadDoc(btn.dataset.id); });
+    });
+    document.querySelectorAll('.doc-action-edit').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); editDoc(btn.dataset.id); });
+    });
+    document.querySelectorAll('.doc-action-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); deleteDoc(btn.dataset.id); });
+    });
+  }
+
+  function renderTable() {
+    const tbody = document.querySelector('#docTable tbody');
+    if (!tbody) return;
+    if (filteredDocs.length === 0) {
+      render();
+      return;
+    }
+    tbody.innerHTML = filteredDocs.map(doc => renderDocRow(doc)).join('');
+    bindRowEvents();
+  }
+
+  // ========== PREVIEW ==========
+
+  async function previewDoc(docId) {
+    const doc = (data.documents || []).find(d => d.id === docId);
+    if (!doc) return;
+
+    const overlay = document.getElementById('modalOverlay');
+    const content = document.getElementById('modalContent');
+
+    let previewHtml = '';
+
+    if (isPdfType(doc.type)) {
+      previewHtml = `<div style="text-align:center;color:var(--ink-faint);padding:40px">正在加载预览...</div>`;
+    } else if (isImageType(doc.type)) {
+      previewHtml = `<div style="text-align:center;padding:20px">正在加载图片...</div>`;
+    } else {
+      previewHtml = `
+        <div class="empty-state" style="padding:40px">
+          <div class="empty-state-icon">📎</div>
+          <div class="empty-state-text">暂不支持预览，请下载查看</div>
+          <button class="btn btn-primary btn-sm" id="previewDownloadBtn">下载文件</button>
+        </div>
+      `;
+    }
+
+    content.innerHTML = `
+      <div class="modal-header">
+        <div class="modal-title">${getFileIcon(doc.type)} ${escapeHtml(doc.name)}</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body" id="previewBody" style="padding:0;max-height:60vh;overflow:auto">
+        ${previewHtml}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" onclick="closeModal()">关闭</button>
+        <button class="btn btn-primary btn-sm" id="previewDownloadBtn2">下载</button>
+      </div>
+    `;
+    overlay.classList.add('show');
+
+    // Load actual content
+    const file = await getFileFromDisk(doc.fileName);
+    const body = document.getElementById('previewBody');
+
+    if (file) {
+      const url = URL.createObjectURL(file);
+      if (isPdfType(doc.type)) {
+        if (body) body.innerHTML = `<embed src="${url}" type="application/pdf" width="100%" height="500px" style="border-radius:8px">`;
+      } else if (isImageType(doc.type)) {
+        if (body) body.innerHTML = `<img src="${url}" style="max-width:100%;border-radius:8px;display:block;margin:0 auto" alt="${escapeHtml(doc.name)}">`;
+      }
+
+      // Bind download buttons
+      const bindDownload = (btn) => {
+        if (btn) {
+          btn.addEventListener('click', () => {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = doc.fileName.split('/').pop();
+            a.click();
+          });
+        }
+      };
+      bindDownload(document.getElementById('previewDownloadBtn'));
+      bindDownload(document.getElementById('previewDownloadBtn2'));
+    } else {
+      if (body) body.innerHTML = `<div class="empty-state" style="padding:40px"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">文件读取失败，可能已被移动或删除</div></div>`;
+    }
+  }
+
+  // ========== EDIT ==========
+
+  function editDoc(docId) {
+    const doc = (data.documents || []).find(d => d.id === docId);
+    if (!doc) return;
+
+    const overlay = document.getElementById('modalOverlay');
+    const content = document.getElementById('modalContent');
+    const categories = data.categories || [];
+    const currentTags = doc.tags || [];
+
+    content.innerHTML = `
+      <div class="modal-header">
+        <div class="modal-title">✏️ 编辑文件信息</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:16px">
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">文件名称</label>
+          <input type="text" class="app-input" id="editDocName" value="${escapeHtml(doc.name)}">
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">分类</label>
+          <select class="app-input app-select" id="editDocCategory">
+            ${categories.map(c => `<option value="${escapeHtml(c)}" ${doc.category === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">标签</label>
+          <div id="editTagContainer" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+            ${currentTags.map(t => `<span class="badge badge-blue edit-tag-item" style="cursor:pointer" data-tag="${escapeHtml(t)}">${escapeHtml(t)} ×</span>`).join('')}
+          </div>
+          <div style="display:flex;gap:8px">
+            <input type="text" class="app-input" id="editTagInput" placeholder="输入标签，回车添加" style="flex:1">
+            <button class="btn btn-secondary btn-sm" id="editTagAddBtn">添加</button>
+          </div>
+          <div id="editTagSuggestions" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">
+            ${getAllTags().filter(t => !currentTags.includes(t)).map(t => `<span class="badge badge-gray edit-tag-suggest" style="cursor:pointer" data-tag="${escapeHtml(t)}">+ ${escapeHtml(t)}</span>`).join('')}
+          </div>
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">备注</label>
+          <textarea class="app-input app-textarea" id="editDocNote" placeholder="添加备注...">${escapeHtml(doc.note || '')}</textarea>
+        </div>
+        <div style="font-size:0.78rem;color:var(--ink-faint)">
+          文件: ${escapeHtml(doc.fileName)} · ${formatSize(doc.size)} · ${formatDateTime(doc.uploadedAt)} · ${getUploaderName(doc.uploadedBy)}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" id="editDocSaveBtn">保存</button>
+      </div>
+    `;
+    overlay.classList.add('show');
+
+    let editingTags = currentTags.slice();
+
+    function refreshEditTags() {
+      const container = document.getElementById('editTagContainer');
+      const suggestions = document.getElementById('editTagSuggestions');
+      if (container) {
+        container.innerHTML = editingTags.map(t => `<span class="badge badge-blue edit-tag-item" style="cursor:pointer" data-tag="${escapeHtml(t)}">${escapeHtml(t)} ×</span>`).join('');
+        container.querySelectorAll('.edit-tag-item').forEach(el => {
+          el.addEventListener('click', () => {
+            editingTags = editingTags.filter(tag => tag !== el.dataset.tag);
+            refreshEditTags();
+          });
+        });
+      }
+      if (suggestions) {
+        suggestions.innerHTML = getAllTags().filter(t => !editingTags.includes(t)).map(t => `<span class="badge badge-gray edit-tag-suggest" style="cursor:pointer" data-tag="${escapeHtml(t)}">+ ${escapeHtml(t)}</span>`).join('');
+        suggestions.querySelectorAll('.edit-tag-suggest').forEach(el => {
+          el.addEventListener('click', () => {
+            if (!editingTags.includes(el.dataset.tag)) {
+              editingTags.push(el.dataset.tag);
+              refreshEditTags();
+            }
+          });
+        });
+      }
+    }
+
+    refreshEditTags();
+
+    const addTag = () => {
+      const input = document.getElementById('editTagInput');
+      const val = (input.value || '').trim();
+      if (val && !editingTags.includes(val)) {
+        editingTags.push(val);
+        allTags.add(val);
+        input.value = '';
+        refreshEditTags();
+      }
+    };
+
+    document.getElementById('editTagAddBtn').addEventListener('click', addTag);
+    document.getElementById('editTagInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addTag(); }
+    });
+
+    document.getElementById('editDocSaveBtn').addEventListener('click', async () => {
+      const newName = document.getElementById('editDocName').value.trim();
+      const newCategory = document.getElementById('editDocCategory').value;
+      const newNote = document.getElementById('editDocNote').value.trim();
+
+      if (!newName) {
+        window.App.showToast('文件名称不能为空', 'warning');
+        return;
+      }
+
+      // If category changed, we should move the file
+      const oldCategory = doc.category;
+      const newFileName = newCategory + '/' + doc.fileName.split('/').pop();
+
+      if (oldCategory !== newCategory && window.App.dirHandle) {
+        // Move file in disk
+        try {
+          const file = await getFileFromDisk(doc.fileName);
+          if (file) {
+            const saved = await saveFileToDisk(file, newCategory, doc.fileName.split('/').pop());
+            if (saved) {
+              // Delete old file
+              try {
+                const parts = doc.fileName.split('/');
+                let current = window.App.dirHandle;
+                for (let i = 0; i < parts.length; i++) {
+                  if (i === parts.length - 1) {
+                    await current.removeEntry(parts[i]);
+                  } else {
+                    current = await current.getDirectoryHandle(parts[i]);
+                  }
+                }
+              } catch (e) {
+                console.warn('Failed to remove old file:', e);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Move file failed:', e);
+          window.App.showToast('移动文件失败，但元数据已更新', 'warning');
+        }
+      }
+
+      doc.name = newName;
+      doc.category = newCategory;
+      doc.fileName = newFileName;
+      doc.tags = editingTags;
+      doc.note = newNote;
+      doc.updatedAt = new Date().toISOString();
+
+      data.updatedAt = new Date().toISOString();
+      window.App.setData('documents', data);
+      updateAllTags();
+      closeModal();
+      applyFilters();
+      render();
+      window.App.showToast('文件信息已更新', 'success');
+    });
+  }
+
+  // ========== DELETE ==========
+
+  async function deleteDoc(docId) {
+    const doc = (data.documents || []).find(d => d.id === docId);
+    if (!doc) return;
+
+    const confirmed = await window.App.confirm('确定要删除文件 "' + doc.name + '" 吗？此操作不可恢复。');
+    if (!confirmed) return;
+
+    // Try to delete from disk
+    if (window.App.dirHandle) {
+      try {
+        const parts = doc.fileName.split('/');
+        let current = window.App.dirHandle;
+        for (let i = 0; i < parts.length; i++) {
+          if (i === parts.length - 1) {
+            await current.removeEntry(parts[i]);
+          } else {
+            current = await current.getDirectoryHandle(parts[i]);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to delete file from disk:', e);
+      }
+    }
+
+    data.documents = (data.documents || []).filter(d => d.id !== docId);
+    data.updatedAt = new Date().toISOString();
+    window.App.setData('documents', data);
+    updateAllTags();
+    applyFilters();
+    render();
+    window.App.showToast('文件已删除', 'success');
+  }
+
+  // ========== DOWNLOAD ==========
+
+  async function downloadDoc(docId) {
+    const doc = (data.documents || []).find(d => d.id === docId);
+    if (!doc) return;
+
+    const file = await getFileFromDisk(doc.fileName);
+    if (!file) {
+      window.App.showToast('文件读取失败', 'error');
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = doc.fileName.split('/').pop();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    window.App.showToast('开始下载: ' + doc.name, 'info');
+  }
+
+  // ========== DRAG & DROP ==========
+
+  function setupDragDrop() {
+    const container = document.getElementById('documents-content');
+    if (!container) return;
+
+    // We need to bind on the module content area
+    const moduleEl = document.getElementById('module-documents');
+    if (!moduleEl) return;
+
+    moduleEl.addEventListener('dragover', (e) => {
+      if (!moduleEl.classList.contains('active')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      moduleEl.style.boxShadow = 'inset 0 0 0 3px var(--blue)';
+    });
+
+    moduleEl.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      moduleEl.style.boxShadow = '';
+    });
+
+    moduleEl.addEventListener('drop', (e) => {
+      if (!moduleEl.classList.contains('active')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      moduleEl.style.boxShadow = '';
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleFileSelect(e.dataTransfer.files);
+      }
+    });
+  }
+
+  // ========== HTML ESCAPE ==========
+
+  function escapeHtml(text) {
+    if (text == null) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // ========== INIT ==========
+
+  function init() {
+    const uploadBtn = document.getElementById('btnUploadDoc');
+    if (uploadBtn) uploadBtn.addEventListener('click', handleUploadClick);
+
+    setupDragDrop();
+
+    // Load initial data
+    const initial = window.App.getData('documents');
+    if (initial) {
+      data = initial;
+      updateAllTags();
+    }
+  }
+
+  // ========== REGISTER ==========
+
+  registerModule('documents', {
+    name: '文档库',
+    init,
+    render,
+    onShow() { this.render(); },
+    setData(d) {
+      data = d || data;
+      updateAllTags();
+    }
+  });
+})();
+
+</script>
+
+<!-- ====== BUDGET.JS ====== -->
+<script>
+// Budget Module
+(function() {
+  let data = { currency: 'CNY', totalBudget: 0, items: [], payments: [] };
+  let currentTab = 'overview'; // 'overview' | 'payments' | 'charts'
+
+  const CATEGORIES = ['硬装', '主材', '家具', '家电', '软装', '其他'];
+  const PAYMENT_TYPES = ['定金', '首款', '中期', '尾款', '全款'];
+  const METHODS = ['转账', '现金', '信用卡', '花呗/白条', '其他'];
+
+  function formatMoney(n) {
+    if (n === undefined || n === null || isNaN(n)) return '¥0';
+    return '¥' + Number(n).toLocaleString('zh-CN');
+  }
+
+  function genId(prefix) {
+    return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+  }
+
+  function getItemActual(itemId) {
+    return data.payments
+      .filter(p => p.itemId === itemId)
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  }
+
+  function recalcItem(item) {
+    item.actual = getItemActual(item.id);
+    item.variance = (Number(item.budget) || 0) - item.actual;
+    const ratio = item.budget > 0 ? (item.actual - item.budget) / item.budget : 0;
+    if (item.actual === 0) item.status = '未开始';
+    else if (ratio > 0.10) item.status = '超支';
+    else item.status = '正常';
+    return item;
+  }
+
+  function recalcAll() {
+    data.items.forEach(recalcItem);
+    data.totalBudget = data.items.reduce((s, it) => s + (Number(it.budget) || 0), 0);
+  }
+
+  function getTotalActual() {
+    return data.items.reduce((s, it) => s + (Number(it.actual) || 0), 0);
+  }
+
+  function getTotalVariance() {
+    return data.items.reduce((s, it) => s + (Number(it.variance) || 0), 0);
+  }
+
+  function getUsageRate() {
+    return data.totalBudget > 0 ? Math.round((getTotalActual() / data.totalBudget) * 100) : 0;
+  }
+
+  function getOverBudgetItems() {
+    return data.items.filter(it => {
+      const ratio = it.budget > 0 ? (it.actual - it.budget) / it.budget : 0;
+      return ratio > 0.10;
+    });
+  }
+
+  function getRowStyle(item) {
+    const ratio = item.budget > 0 ? (item.actual - item.budget) / item.budget : 0;
+    if (ratio > 0.20) return 'background:rgba(232,74,95,0.06)';
+    if (ratio > 0.10) return 'background:rgba(244,215,88,0.12)';
+    return '';
+  }
+
+  function save() {
+    recalcAll();
+    App.setData('budget', JSON.parse(JSON.stringify(data)));
+  }
+
+  // ========== RENDER: OVERVIEW ==========
+  function renderOverview() {
+    recalcAll();
+    const totalBudget = data.totalBudget;
+    const totalActual = getTotalActual();
+    const totalVariance = getTotalVariance();
+    const usageRate = getUsageRate();
+    const overItems = getOverBudgetItems();
+
+    let alerts = '';
+    if (totalVariance < 0 && totalBudget > 0 && Math.abs(totalVariance) / totalBudget > 0.05) {
+      alerts += `<div class="alert-banner alert-banner-danger">🔴 总预算已超支 ${formatMoney(Math.abs(totalVariance))}（${Math.round(Math.abs(totalVariance)/totalBudget*100)}%），请立即控制支出</div>`;
+    }
+    overItems.forEach(it => {
+      const ratio = Math.round((it.actual - it.budget) / it.budget * 100);
+      const cls = ratio > 20 ? 'alert-banner-danger' : 'alert-banner-warning';
+      const icon = ratio > 20 ? '🔴' : '⚠️';
+      alerts += `<div class="alert-banner ${cls}">${icon} ${escapeHtml(it.name)} 已超支 ${formatMoney(Math.abs(it.variance))}（${ratio}%），建议控制同类预算</div>`;
+    });
+
+    let rows = data.items.map((item) => {
+      const rowStyle = getRowStyle(item);
+      const statusIcon = item.status === '正常' ? '✅' : item.status === '超支' ? '⚠️' : '⏳';
+      const statusCls = item.status === '正常' ? 'badge-green' : item.status === '超支' ? 'badge-red' : 'badge-gray';
+      return `
+        <tr style="${rowStyle}" data-id="${item.id}">
+          <td><span class="budget-cell-name" data-field="name">${escapeHtml(item.name)}</span></td>
+          <td><span class="budget-cell-category" data-field="category">${escapeHtml(item.category)}</span></td>
+          <td style="text-align:right"><span class="budget-cell-budget" data-field="budget">${formatMoney(item.budget)}</span></td>
+          <td style="text-align:right"><span class="budget-cell-actual" data-field="actual">${formatMoney(item.actual)}</span></td>
+          <td style="text-align:right;${item.variance < 0 ? 'color:var(--red)' : ''}">${formatMoney(item.variance)}</td>
+          <td><span class="badge ${statusCls}">${statusIcon} ${item.status}</span></td>
+          <td><span class="budget-cell-note" data-field="note">${escapeHtml(item.note || '')}</span></td>
+          <td>
+            <button class="btn btn-sm btn-danger budget-btn-delete" data-id="${item.id}">🗑</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    if (data.items.length === 0) {
+      rows = `<tr><td colspan="8"><div class="empty-state"><div class="empty-state-icon">💰</div><div class="empty-state-text">暂无预算项目，点击右上角「新增项目」开始</div></div></td></tr>`;
+    }
+
+    return `
+      <div class="budget-overview">
+        ${alerts}
+        <div class="app-card" style="overflow-x:auto">
+          <table class="data-table budget-table">
+            <thead>
+              <tr>
+                <th>项目</th>
+                <th>分类</th>
+                <th style="text-align:right">预算金额</th>
+                <th style="text-align:right">实际金额</th>
+                <th style="text-align:right">差额</th>
+                <th>状态</th>
+                <th>备注</th>
+                <th style="width:60px">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+            <tfoot>
+              <tr style="font-weight:700;background:rgba(43,127,216,0.04)">
+                <td colspan="2">合计</td>
+                <td style="text-align:right">${formatMoney(totalBudget)}</td>
+                <td style="text-align:right">${formatMoney(totalActual)}</td>
+                <td style="text-align:right;${totalVariance < 0 ? 'color:var(--red)' : ''}">${formatMoney(totalVariance)}</td>
+                <td colspan="2">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span>使用率</span>
+                    <div class="progress-bar" style="flex:1;min-width:80px">
+                      <div class="progress-bar-fill ${usageRate > 100 ? 'danger' : usageRate > 80 ? 'warning' : ''}" style="width:${Math.min(usageRate,100)}%"></div>
+                    </div>
+                    <span>${usageRate}%</span>
+                  </div>
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  // ========== RENDER: PAYMENTS ==========
+  function renderPayments() {
+    const sorted = [...data.payments].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    let rows = sorted.map(pay => {
+      const item = data.items.find(it => it.id === pay.itemId);
+      const itemName = item ? item.name : '（已删除项目）';
+      const payer = App.users.find(u => u.id === pay.payer);
+      const payerName = payer ? payer.name : pay.payer;
+      return `
+        <tr data-id="${pay.id}">
+          <td>${pay.date}</td>
+          <td>${escapeHtml(itemName)}</td>
+          <td style="text-align:right;font-weight:600">${formatMoney(pay.amount)}</td>
+          <td><span class="badge badge-blue">${escapeHtml(pay.type)}</span></td>
+          <td>${escapeHtml(payerName)}</td>
+          <td>${escapeHtml(pay.method)}</td>
+          <td>${escapeHtml(pay.note || '')}</td>
+          <td><button class="btn btn-sm btn-danger budget-btn-delete-pay" data-id="${pay.id}">🗑</button></td>
+        </tr>
+      `;
+    }).join('');
+
+    if (sorted.length === 0) {
+      rows = `<tr><td colspan="8"><div class="empty-state"><div class="empty-state-icon">🧾</div><div class="empty-state-text">暂无支出记录，点击下方「新增支出」添加</div></div></td></tr>`;
+    }
+
+    return `
+      <div class="budget-payments">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div class="text-sm text-faint">共 ${data.payments.length} 笔支出，合计 ${formatMoney(getTotalActual())}</div>
+          <button class="btn btn-primary btn-sm" id="btnAddPayment">+ 新增支出</button>
+        </div>
+        <div class="app-card" style="overflow-x:auto">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>关联项目</th>
+                <th style="text-align:right">金额</th>
+                <th>付款类型</th>
+                <th>付款人</th>
+                <th>付款方式</th>
+                <th>备注</th>
+                <th style="width:60px">操作</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div style="margin-top:20px">
+          <div style="font-weight:600;margin-bottom:12px">📅 支出时间线</div>
+          <div class="budget-timeline">
+            ${renderTimeline(sorted)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderTimeline(payments) {
+    if (payments.length === 0) return '<div style="color:var(--ink-faint);font-size:0.85rem">暂无支出记录</div>';
+    return payments.map((pay) => {
+      const item = data.items.find(it => it.id === pay.itemId);
+      const itemName = item ? item.name : '（已删除）';
+      const payer = App.users.find(u => u.id === pay.payer);
+      return `
+        <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-light)">
+          <div style="flex-shrink:0">
+            <div style="width:12px;height:12px;border-radius:50%;background:var(--blue);border:2px solid var(--blue);margin-top:4px"></div>
+          </div>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600">${escapeHtml(itemName)} — ${escapeHtml(pay.type)}</span>
+              <span style="font-weight:700;color:var(--blue)">${formatMoney(pay.amount)}</span>
+            </div>
+            <div style="font-size:0.78rem;color:var(--ink-faint)">${pay.date} · ${payer ? escapeHtml(payer.name) : escapeHtml(pay.payer)} · ${escapeHtml(pay.method)}</div>
+            ${pay.note ? `<div style="font-size:0.78rem;color:var(--ink-faint);margin-top:4px">${escapeHtml(pay.note)}</div>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ========== RENDER: CHARTS ==========
+  function renderCharts() {
+    recalcAll();
+    const totalBudget = data.totalBudget;
+    const totalActual = getTotalActual();
+    const totalVariance = getTotalVariance();
+
+    // Bar chart: budget vs actual per item
+    const maxVal = Math.max(...data.items.map(it => Math.max(it.budget || 0, it.actual || 0)), 1);
+    const barRows = data.items.map(it => {
+      const budgetW = Math.round((it.budget / maxVal) * 100);
+      const actualW = Math.round((it.actual / maxVal) * 100);
+      const overBudget = it.actual > it.budget;
+      return `
+        <div style="display:grid;grid-template-columns:100px 1fr 1fr 140px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-light)">
+          <div style="font-size:0.85rem;font-weight:500">${escapeHtml(it.name)}</div>
+          <div>
+            <div style="height:8px;background:var(--border-light);border-radius:4px;overflow:hidden">
+              <div style="height:100%;background:var(--blue);border-radius:4px;width:${budgetW}%"></div>
+            </div>
+          </div>
+          <div>
+            <div style="height:8px;background:var(--border-light);border-radius:4px;overflow:hidden">
+              <div style="height:100%;background:${overBudget ? 'var(--red)' : 'var(--green)'};border-radius:4px;width:${actualW}%"></div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:8px;font-size:0.78rem">
+            <span style="color:var(--ink-faint)">${formatMoney(it.budget)}</span>
+            <span style="font-weight:600;${overBudget ? 'color:var(--red)' : ''}">${formatMoney(it.actual)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Pie chart by category
+    const catMap = {};
+    data.items.forEach(it => {
+      const c = it.category || '其他';
+      if (!catMap[c]) catMap[c] = { budget: 0, actual: 0 };
+      catMap[c].budget += Number(it.budget) || 0;
+      catMap[c].actual += Number(it.actual) || 0;
+    });
+    const catEntries = Object.entries(catMap);
+    const catColors = ['#2B7FD8', '#F4D758', '#E84A5F', '#16a34a', '#8884d8', '#ff9f43'];
+    let gradientParts = [];
+    let acc = 0;
+    const catTotal = catEntries.reduce((s, [, v]) => s + v.actual, 0) || 1;
+    catEntries.forEach(([, v], idx) => {
+      const pct = (v.actual / catTotal) * 100;
+      const color = catColors[idx % catColors.length];
+      gradientParts.push(`${color} ${acc}% ${acc + pct}%`);
+      acc += pct;
+    });
+    const pieStyle = gradientParts.length ? `conic-gradient(${gradientParts.join(', ')})` : 'conic-gradient(var(--border-light) 0% 100%)';
+
+    const catLegend = catEntries.map(([name, v], idx) => {
+      const color = catColors[idx % catColors.length];
+      const pct = catTotal > 0 ? Math.round((v.actual / catTotal) * 100) : 0;
+      return `
+        <div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.85rem">
+          <span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span>
+          <span>${escapeHtml(name)}</span>
+          <span style="margin-left:auto;font-weight:600">${formatMoney(v.actual)}</span>
+          <span style="color:var(--ink-faint)">(${pct}%)</span>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="budget-charts">
+        <div class="grid-2">
+          <div class="app-card">
+            <div style="font-weight:600;margin-bottom:16px">📊 预算 vs 实际</div>
+            <div>
+              <div style="display:grid;grid-template-columns:100px 1fr 1fr 140px;gap:8px;align-items:center;padding-bottom:8px;border-bottom:2px solid var(--border-light);font-size:0.78rem;color:var(--ink-faint)">
+                <div></div>
+                <div>预算</div>
+                <div>实际</div>
+                <div></div>
+              </div>
+              ${barRows || '<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">暂无数据</div></div>'}
+            </div>
+          </div>
+          <div class="app-card">
+            <div style="font-weight:600;margin-bottom:16px">🥧 分类支出占比</div>
+            <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+              <div class="pie-chart" style="background:${pieStyle};flex-shrink:0">
+                <div class="pie-center">
+                  <div class="pie-value">${formatMoney(totalActual)}</div>
+                  <div class="pie-label">总支出</div>
+                </div>
+              </div>
+              <div style="flex:1;min-width:160px">
+                ${catLegend || '<div style="color:var(--ink-faint);font-size:0.85rem">暂无数据</div>'}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="app-card" style="margin-top:20px">
+          <div style="font-weight:600;margin-bottom:16px">📈 月度支出趋势</div>
+          <div>
+            ${renderTrendChart()}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderTrendChart() {
+    if (data.payments.length === 0) {
+      return '<div class="empty-state"><div class="empty-state-icon">📈</div><div class="empty-state-text">暂无支出数据</div></div>';
+    }
+    // Group by month
+    const monthMap = {};
+    [...data.payments].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
+      const d = new Date(p.date);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      if (!monthMap[key]) monthMap[key] = 0;
+      monthMap[key] += Number(p.amount) || 0;
+    });
+    const entries = Object.entries(monthMap);
+    const max = Math.max(...entries.map(([, v]) => v), 1);
+    return `
+      <div style="display:flex;align-items:flex-end;gap:12px;height:200px;padding-top:20px">
+        ${entries.map(([m, v]) => {
+          const h = Math.round((v / max) * 100);
+          return `
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:60px">
+              <div style="width:100%;max-width:60px;height:160px;background:var(--border-light);border-radius:4px;position:relative;overflow:hidden">
+                <div style="position:absolute;bottom:0;left:0;right:0;height:${h}%;background:var(--blue);border-radius:4px;transition:height 0.5s ease"></div>
+              </div>
+              <div style="font-size:0.75rem;color:var(--ink-faint)">${m}</div>
+              <div style="font-size:0.75rem;font-weight:600">${formatMoney(v)}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  // ========== INLINE EDITING ==========
+  function makeEditable(container) {
+    container.querySelectorAll('.budget-cell-name, .budget-cell-category, .budget-cell-budget, .budget-cell-actual, .budget-cell-note').forEach(cell => {
+      cell.addEventListener('click', () => {
+        if (cell.querySelector('input, select')) return;
+        const field = cell.dataset.field;
+        const itemId = cell.closest('tr').dataset.id;
+        const item = data.items.find(it => it.id === itemId);
+        if (!item) return;
+
+        let input;
+        if (field === 'category') {
+          input = document.createElement('select');
+          input.className = 'app-input app-select';
+          input.style.padding = '4px 8px';
+          input.style.fontSize = '0.85rem';
+          input.style.height = '28px';
+          CATEGORIES.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            if (c === item.category) opt.selected = true;
+            input.appendChild(opt);
+          });
+        } else if (field === 'budget' || field === 'actual') {
+          input = document.createElement('input');
+          input.type = 'number';
+          input.className = 'app-input';
+          input.style.padding = '4px 8px';
+          input.style.fontSize = '0.85rem';
+          input.value = item[field] || 0;
+        } else {
+          input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'app-input';
+          input.style.padding = '4px 8px';
+          input.style.fontSize = '0.85rem';
+          input.value = item[field] || '';
+        }
+
+        cell.innerHTML = '';
+        cell.appendChild(input);
+        input.focus();
+
+        const commit = () => {
+          let val = input.value;
+          if (field === 'budget' || field === 'actual') {
+            val = Number(val) || 0;
+          }
+          item[field] = val;
+          recalcItem(item);
+          save();
+          render();
+        };
+
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { input.blur(); }
+          if (e.key === 'Escape') { render(); }
+        });
+      });
+    });
+  }
+
+  // ========== ADD ITEM ==========
+  function addItem() {
+    const newItem = {
+      id: genId('bi'),
+      name: '新项目',
+      category: CATEGORIES[0],
+      budget: 0,
+      actual: 0,
+      variance: 0,
+      status: '未开始',
+      paymentSchedule: '',
+      note: ''
+    };
+    data.items.push(newItem);
+    save();
+    render();
+    App.showToast('已新增预算项目', 'success');
+  }
+
+  // ========== DELETE ITEM ==========
+  async function deleteItem(id) {
+    const item = data.items.find(it => it.id === id);
+    if (!item) return;
+    const ok = await App.confirm(`确定删除「${item.name}」？关联的 ${data.payments.filter(p => p.itemId === id).length} 笔支出记录将保留但不再关联。`);
+    if (!ok) return;
+    data.items = data.items.filter(it => it.id !== id);
+    save();
+    render();
+    App.showToast('已删除', 'info');
+  }
+
+  // ========== ADD PAYMENT ==========
+  function addPayment() {
+    if (data.items.length === 0) {
+      App.showToast('请先添加预算项目', 'warning');
+      return;
+    }
+    const overlay = document.getElementById('modalOverlay');
+    const content = document.getElementById('modalContent');
+    const today = new Date().toISOString().slice(0, 10);
+    const itemOptions = data.items.map(it => `<option value="${it.id}">${escapeHtml(it.name)}</option>`).join('');
+    const userOptions = App.users.map(u => `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('');
+    const typeOptions = PAYMENT_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
+    const methodOptions = METHODS.map(m => `<option value="${m}">${m}</option>`).join('');
+
+    content.innerHTML = `
+      <div class="modal-header">
+        <div class="modal-title">新增支出</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">关联项目</label>
+          <select class="app-input app-select" id="payItemId">${itemOptions}</select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div>
+            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">日期</label>
+            <input type="date" class="app-input" id="payDate" value="${today}">
+          </div>
+          <div>
+            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">金额</label>
+            <input type="number" class="app-input" id="payAmount" placeholder="0">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div>
+            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">付款类型</label>
+            <select class="app-input app-select" id="payType">${typeOptions}</select>
+          </div>
+          <div>
+            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">付款人</label>
+            <select class="app-input app-select" id="payPayer">${userOptions}</select>
+          </div>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">付款方式</label>
+          <select class="app-input app-select" id="payMethod">${methodOptions}</select>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">备注</label>
+          <input type="text" class="app-input" id="payNote" placeholder="可选">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" id="btnConfirmAddPay">确认</button>
+      </div>
+    `;
+    overlay.classList.add('show');
+
+    document.getElementById('btnConfirmAddPay').addEventListener('click', () => {
+      const itemId = document.getElementById('payItemId').value;
+      const date = document.getElementById('payDate').value;
+      const amount = Number(document.getElementById('payAmount').value) || 0;
+      const type = document.getElementById('payType').value;
+      const payer = document.getElementById('payPayer').value;
+      const method = document.getElementById('payMethod').value;
+      const note = document.getElementById('payNote').value;
+      if (!date || amount <= 0) {
+        App.showToast('请填写日期和金额', 'warning');
+        return;
+      }
+      data.payments.push({
+        id: genId('pay'),
+        itemId,
+        date,
+        amount,
+        type,
+        payer,
+        method,
+        receiptDocId: null,
+        note
+      });
+      save();
+      closeModal();
+      render();
+      App.showToast('支出已记录', 'success');
+    });
+  }
+
+  // ========== DELETE PAYMENT ==========
+  async function deletePayment(id) {
+    const pay = data.payments.find(p => p.id === id);
+    if (!pay) return;
+    const ok = await App.confirm(`确定删除这笔 ${formatMoney(pay.amount)} 的支出记录？`);
+    if (!ok) return;
+    data.payments = data.payments.filter(p => p.id !== id);
+    save();
+    render();
+    App.showToast('已删除', 'info');
+  }
+
+  // ========== MAIN RENDER ==========
+  function render() {
+    const container = document.getElementById('budget-content');
+    if (!container) return;
+
+    const tabs = [
+      { id: 'overview', label: '预算总表' },
+      { id: 'payments', label: '支出明细' },
+      { id: 'charts', label: '统计图表' }
+    ];
+
+    let content = '';
+    if (currentTab === 'overview') content = renderOverview();
+    else if (currentTab === 'payments') content = renderPayments();
+    else if (currentTab === 'charts') content = renderCharts();
+
+    container.innerHTML = `
+      <div class="tab-bar">
+        ${tabs.map(t => `<button class="tab ${t.id === currentTab ? 'active' : ''}" data-tab="${t.id}">${t.label}</button>`).join('')}
+      </div>
+      ${content}
+    `;
+
+    // Tab switching
+    container.querySelectorAll('.tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentTab = btn.dataset.tab;
+        render();
+      });
+    });
+
+    // Inline editing (overview only)
+    if (currentTab === 'overview') {
+      makeEditable(container);
+      container.querySelectorAll('.budget-btn-delete').forEach(btn => {
+        btn.addEventListener('click', () => deleteItem(btn.dataset.id));
+      });
+    }
+
+    // Payment actions
+    if (currentTab === 'payments') {
+      const addBtn = document.getElementById('btnAddPayment');
+      if (addBtn) addBtn.addEventListener('click', addPayment);
+      container.querySelectorAll('.budget-btn-delete-pay').forEach(btn => {
+        btn.addEventListener('click', () => deletePayment(btn.dataset.id));
+      });
+    }
+  }
+
+  function escapeHtml(str) {
+    if (str === undefined || str === null) return '';
+    return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+  }
+
+  // ========== MODULE REGISTRATION ==========
+  registerModule('budget', {
+    name: '预算',
+    init() {
+      const btn = document.getElementById('btnAddBudgetItem');
+      if (btn) btn.addEventListener('click', addItem);
+    },
+    render() {
+      render();
+    },
+    onShow() {
+      const d = App.getData('budget');
+      if (d) data = JSON.parse(JSON.stringify(d));
+      render();
+    },
+    setData(d) {
+      if (d) data = JSON.parse(JSON.stringify(d));
+    }
+  });
+})();
+
+</script>
+
+<!-- ====== PROGRESS.JS ====== -->
+<script>
+// Progress Module
+(function() {
+  'use strict';
+
+  // ── Constants ──
+  const PHASE_NAMES = ['拆除', '水电', '泥瓦', '木工', '油漆', '安装'];
+  const STATUS_LIST = ['未开始', '进行中', '已完成', '滞后'];
+  const LOCATION_TAGS = ['客厅', '主卧', '次卧', '厨房', '卫生间', '阳台', '书房', '玄关'];
+  const NATURE_TAGS = ['正常进度', '发现问题', '验收通过', '待整改', '灵感参考'];
+
+  // ── State ──
+  let data = { version: '1.0', updatedAt: '', phases: [], currentPhaseId: null, photos: [] };
+  let currentTab = 'phases'; // 'phases' | 'photos'
+  let photoFilters = { phase: 'all', location: 'all', nature: 'all', dateFrom: '', dateTo: '', user: 'all' };
+  let photoView = 'grid'; // 'grid' | 'timeline'
+  let photoObjectURLs = []; // track for cleanup
+
+  // ── Helpers ──
+  function getToday() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function formatDateRange(start, end, fallback) {
+    if (!start && !end) return fallback || '—';
+    const s = start ? start.slice(5).replace('-', '/') : '?';
+    const e = end ? end.slice(5).replace('-', '/') : '进行中';
+    return s + ' - ' + e;
+  }
+
+  function daysBetween(a, b) {
+    if (!a || !b) return 0;
+    const da = new Date(a), db = new Date(b);
+    return Math.round((db - da) / 86400000);
+  }
+
+  function isLag(phase) {
+    if (!phase.plannedEnd) return false;
+    const today = getToday();
+    if (phase.actualEnd && phase.actualEnd > phase.plannedEnd) return true;
+    if (!phase.actualEnd && phase.status !== '已完成' && today > phase.plannedEnd) return true;
+    return false;
+  }
+
+  function lagDays(phase) {
+    if (!phase.plannedEnd) return 0;
+    const end = phase.actualEnd || getToday();
+    if (end > phase.plannedEnd) return daysBetween(phase.plannedEnd, end);
+    return 0;
+  }
+
+  function save() {
+    data.updatedAt = new Date().toISOString();
+    App.setData('progress', JSON.parse(JSON.stringify(data)));
+  }
+
+  function getUser(uId) {
+    return (App.users || []).find(u => u.id === uId) || { name: '未知', avatar: '👤' };
+  }
+
+  function generateId(prefix) {
+    return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+  }
+
+  function ensureDefaultPhases() {
+    if (!data.phases || data.phases.length === 0) {
+      data.phases = PHASE_NAMES.map((name, i) => ({
+        id: 'phase_' + (i + 1),
+        name,
+        order: i + 1,
+        plannedStart: '',
+        plannedEnd: '',
+        actualStart: '',
+        actualEnd: '',
+        status: '未开始',
+        progress: 0,
+        note: ''
+      }));
+    }
+  }
+
+  // ── DOM Refs ──
+  function container() {
+    return document.getElementById('progress-content');
+  }
+
+  // ── Render: Tabs ──
+  function renderTabs() {
+    return `
+      <div class="tab-bar">
+        <button class="tab ${currentTab === 'phases' ? 'active' : ''}" data-tab="phases">📋 阶段时间线</button>
+        <button class="tab ${currentTab === 'photos' ? 'active' : ''}" data-tab="photos">📷 照片墙 (${data.photos?.length || 0})</button>
+      </div>
+    `;
+  }
+
+  // ── Render: Phases ──
+  function renderPhases() {
+    ensureDefaultPhases();
+    const phases = data.phases;
+    const currentId = data.currentPhaseId;
+
+    let html = '<div class="timeline" style="margin-bottom:24px;flex-wrap:wrap;">';
+    phases.forEach((phase, idx) => {
+      const isCurrent = phase.id === currentId;
+      const lag = isLag(phase);
+      const completed = phase.status === '已完成';
+      const activeCls = isCurrent ? 'active' : (completed ? 'completed' : (lag ? 'lag' : ''));
+      const lineCls = idx < phases.length - 1 ? (completed ? 'completed' : (isCurrent ? 'active' : '')) : '';
+
+      html += `
+        <div class="timeline-item">
+          <div class="timeline-dot ${activeCls}"></div>
+          ${idx < phases.length - 1 ? `<div class="timeline-line ${lineCls}"></div>` : ''}
+        </div>
+      `;
+    });
+    html += '</div>';
+
+    html += '<div class="grid-3" id="phaseGrid">';
+    phases.forEach(phase => {
+      const isCurrent = phase.id === currentId;
+      const lag = isLag(phase);
+      const cardCls = ['phase-card'];
+      if (isCurrent) cardCls.push('active');
+      else if (phase.status === '已完成') cardCls.push('completed');
+      else if (lag) cardCls.push('lag');
+
+      const statusBadge = phase.status === '已完成' ? '<span class="badge badge-green">✅ 已完成</span>' :
+        phase.status === '进行中' ? '<span class="badge badge-blue">🔄 进行中</span>' :
+        phase.status === '滞后' ? '<span class="badge badge-red">⚠️ 滞后</span>' :
+        '<span class="badge badge-gray">⏳ 未开始</span>';
+
+      const currentBadge = isCurrent ? '<span class="badge badge-blue" style="margin-left:6px">当前</span>' : '';
+      const lagText = lag ? `<div class="phase-status" style="color:var(--red);font-weight:600">滞后 ${lagDays(phase)} 天</div>` : '';
+      const actualText = phase.actualStart
+        ? (phase.actualEnd ? `实际: ${daysBetween(phase.actualStart, phase.actualEnd)} 天` : `已进行 ${daysBetween(phase.actualStart, getToday())} 天`)
+        : '';
+
+      const progressColor = phase.progress >= 100 ? 'success' : (lag ? 'danger' : (phase.progress > 0 ? '' : ''));
+
+      html += `
+        <div class="${cardCls.join(' ')}" data-phase-id="${phase.id}">
+          <div class="flex-between" style="margin-bottom:10px">
+            <div class="phase-name">${phase.order}. ${phase.name} ${currentBadge}</div>
+            <div>${statusBadge}</div>
+          </div>
+          <div class="phase-dates" style="margin-bottom:6px">计划: ${formatDateRange(phase.plannedStart, phase.plannedEnd, '未设定')}</div>
+          <div class="phase-dates" style="margin-bottom:8px">实际: ${formatDateRange(phase.actualStart, phase.actualEnd, '未开始')}</div>
+          ${lagText}
+          ${actualText ? `<div class="phase-dates">${actualText}</div>` : ''}
+          <div class="progress-bar" style="margin:10px 0">
+            <div class="progress-bar-fill ${progressColor}" style="width:${phase.progress}%"></div>
+          </div>
+          <div class="text-xs text-faint" style="margin-bottom:10px">进度 ${phase.progress}%</div>
+          ${phase.note ? `<div class="text-xs" style="color:var(--ink-light);margin-bottom:10px;background:var(--cream-deep);padding:6px 8px;border-radius:6px">${escapeHtml(phase.note)}</div>` : ''}
+          <div class="flex" style="gap:6px">
+            <button class="btn btn-sm btn-secondary" onclick="MODULES.progress.editPhase('${phase.id}')">✏️ 编辑</button>
+            ${!isCurrent && phase.status === '进行中' ? `<button class="btn btn-sm btn-primary" onclick="MODULES.progress.setCurrentPhase('${phase.id}')">设为当前</button>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // ── Phase Edit Modal ──
+  function editPhase(phaseId) {
+    const phase = data.phases.find(p => p.id === phaseId);
+    if (!phase) return;
+    const overlay = document.getElementById('modalOverlay');
+    const content = document.getElementById('modalContent');
+    content.innerHTML = `
+      <div class="modal-header">
+        <div class="modal-title">✏️ 编辑阶段 — ${phase.name}</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">状态</label>
+          <select class="app-input app-select" id="editPhaseStatus">
+            ${STATUS_LIST.map(s => `<option value="${s}" ${phase.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">计划开始</label>
+            <input type="date" class="app-input" id="editPlannedStart" value="${phase.plannedStart}">
+          </div>
+          <div>
+            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">计划结束</label>
+            <input type="date" class="app-input" id="editPlannedEnd" value="${phase.plannedEnd}">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">实际开始</label>
+            <input type="date" class="app-input" id="editActualStart" value="${phase.actualStart}">
+          </div>
+          <div>
+            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">实际结束</label>
+            <input type="date" class="app-input" id="editActualEnd" value="${phase.actualEnd || ''}">
+          </div>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">进度 (%)</label>
+          <input type="range" min="0" max="100" value="${phase.progress}" style="width:100%" id="editProgressRange" oninput="document.getElementById('editProgressVal').textContent=this.value+'%'">
+          <div class="text-xs" id="editProgressVal" style="margin-top:4px">${phase.progress}%</div>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">备注</label>
+          <textarea class="app-input app-textarea" id="editPhaseNote" rows="3">${escapeHtml(phase.note)}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" id="btnSavePhase">保存</button>
+      </div>
+    `;
+    overlay.classList.add('show');
+
+    document.getElementById('btnSavePhase').addEventListener('click', () => {
+      phase.status = document.getElementById('editPhaseStatus').value;
+      phase.plannedStart = document.getElementById('editPlannedStart').value;
+      phase.plannedEnd = document.getElementById('editPlannedEnd').value;
+      phase.actualStart = document.getElementById('editActualStart').value;
+      phase.actualEnd = document.getElementById('editActualEnd').value || null;
+      phase.progress = parseInt(document.getElementById('editProgressRange').value, 10);
+      phase.note = document.getElementById('editPhaseNote').value;
+
+      // Auto status logic
+      if (phase.progress >= 100 && phase.status !== '已完成') {
+        phase.status = '已完成';
+        if (!phase.actualEnd) phase.actualEnd = getToday();
+      }
+      if (isLag(phase) && phase.status !== '已完成') phase.status = '滞后';
+
+      // Auto current phase
+      if (phase.status === '进行中' && !data.currentPhaseId) data.currentPhaseId = phase.id;
+
+      save();
+      closeModal();
+      render();
+      App.showToast('阶段信息已更新', 'success');
+    });
+  }
+
+  function setCurrentPhase(phaseId) {
+    data.currentPhaseId = phaseId;
+    save();
+    render();
+    App.showToast('已更新当前阶段', 'success');
+  }
+
+  // ── Render: Photos ──
+  function renderPhotoFilters() {
+    return `
+      <div class="filter-bar">
+        <select class="app-input app-select" id="filterPhase" onchange="MODULES.progress.setFilter('phase', this.value)">
+          <option value="all">全部阶段</option>
+          ${PHASE_NAMES.map(p => `<option value="${p}" ${photoFilters.phase === p ? 'selected' : ''}>${p}</option>`).join('')}
+        </select>
+        <select class="app-input app-select" id="filterLocation" onchange="MODULES.progress.setFilter('location', this.value)">
+          <option value="all">全部位置</option>
+          ${LOCATION_TAGS.map(l => `<option value="${l}" ${photoFilters.location === l ? 'selected' : ''}>${l}</option>`).join('')}
+        </select>
+        <select class="app-input app-select" id="filterNature" onchange="MODULES.progress.setFilter('nature', this.value)">
+          <option value="all">全部性质</option>
+          ${NATURE_TAGS.map(n => `<option value="${n}" ${photoFilters.nature === n ? 'selected' : ''}>${n}</option>`).join('')}
+        </select>
+        <input type="date" class="app-input" id="filterDateFrom" value="${photoFilters.dateFrom}" onchange="MODULES.progress.setFilter('dateFrom', this.value)" title="开始日期">
+        <input type="date" class="app-input" id="filterDateTo" value="${photoFilters.dateTo}" onchange="MODULES.progress.setFilter('dateTo', this.value)" title="结束日期">
+        <select class="app-input app-select" id="filterUser" onchange="MODULES.progress.setFilter('user', this.value)">
+          <option value="all">全部拍摄者</option>
+          ${(App.users || []).map(u => `<option value="${u.id}" ${photoFilters.user === u.id ? 'selected' : ''}>${u.avatar} ${u.name}</option>`).join('')}
+        </select>
+        <div style="flex:1"></div>
+        <button class="btn btn-sm ${photoView === 'grid' ? 'btn-primary' : 'btn-secondary'}" onclick="MODULES.progress.setPhotoView('grid')">⊞ 网格</button>
+        <button class="btn btn-sm ${photoView === 'timeline' ? 'btn-primary' : 'btn-secondary'}" onclick="MODULES.progress.setPhotoView('timeline')">☰ 时间线</button>
+      </div>
+    `;
+  }
+
+  function getFilteredPhotos() {
+    if (!data.photos) return [];
+    return data.photos.filter(ph => {
+      if (photoFilters.phase !== 'all' && ph.tags?.phase !== photoFilters.phase) return false;
+      if (photoFilters.location !== 'all' && !(ph.tags?.location || []).includes(photoFilters.location)) return false;
+      if (photoFilters.nature !== 'all' && ph.tags?.nature !== photoFilters.nature) return false;
+      if (photoFilters.user !== 'all' && ph.takenBy !== photoFilters.user) return false;
+      if (photoFilters.dateFrom && ph.date < photoFilters.dateFrom) return false;
+      if (photoFilters.dateTo && ph.date > photoFilters.dateTo) return false;
+      return true;
+    }).sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  function renderPhotoGrid(photos) {
+    if (photos.length === 0) {
+      return `<div class="empty-state"><div class="empty-state-icon">📷</div><div class="empty-state-text">暂无照片</div><div class="text-sm text-faint">拖拽或点击上传照片</div></div>`;
+    }
+    let html = '<div class="grid-4" id="photoGrid">';
+    photos.forEach(ph => {
+      const user = getUser(ph.takenBy);
+      const tagsHtml = [];
+      if (ph.tags?.phase) tagsHtml.push(`<span class="badge badge-blue">${ph.tags.phase}</span>`);
+      if (ph.tags?.nature) tagsHtml.push(`<span class="badge badge-${ph.tags.nature === '发现问题' ? 'red' : (ph.tags.nature === '验收通过' ? 'green' : 'yellow')}">${ph.tags.nature}</span>`);
+      (ph.tags?.location || []).forEach(loc => tagsHtml.push(`<span class="badge badge-gray">${loc}</span>`));
+
+      html += `
+        <div class="photo-card" data-photo-id="${ph.id}" onclick="MODULES.progress.viewPhoto('${ph.id}')">
+          <div class="photo-card-img" style="display:flex;align-items:center;justify-content:center;overflow:hidden">
+            <img src="" data-src="${ph.fileName}" alt="${escapeHtml(ph.note || '照片')}" style="width:100%;height:100%;object-fit:cover;display:none" onload="this.style.display='block';this.previousElementSibling.style.display='none'">
+            <div style="color:var(--ink-faint);font-size:2rem">📷</div>
+          </div>
+          <div class="photo-card-info">
+            <div class="flex-between" style="margin-bottom:4px">
+              <span class="text-xs text-faint">${ph.date}</span>
+              <span class="text-xs text-faint">${user.avatar} ${user.name}</span>
+            </div>
+            <div class="photo-card-tags">${tagsHtml.join('')}</div>
+            ${ph.note ? `<div class="text-xs" style="color:var(--ink-light);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(ph.note)}</div>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function renderPhotoTimeline(photos) {
+    if (photos.length === 0) {
+      return `<div class="empty-state"><div class="empty-state-icon">📷</div><div class="empty-state-text">暂无照片</div></div>`;
+    }
+    const groups = {};
+    photos.forEach(ph => {
+      if (!groups[ph.date]) groups[ph.date] = [];
+      groups[ph.date].push(ph);
+    });
+    let html = '<div style="display:flex;flex-direction:column;gap:20px">';
+    Object.keys(groups).sort().reverse().forEach(date => {
+      html += `<div class="app-card" style="padding:16px"><div class="text-sm" style="font-weight:600;margin-bottom:12px;color:var(--blue)">${date}</div><div class="grid-4">`;
+      groups[date].forEach(ph => {
+        const user = getUser(ph.takenBy);
+        const tagsHtml = [];
+        if (ph.tags?.phase) tagsHtml.push(`<span class="badge badge-blue">${ph.tags.phase}</span>`);
+        if (ph.tags?.nature) tagsHtml.push(`<span class="badge badge-${ph.tags.nature === '发现问题' ? 'red' : (ph.tags.nature === '验收通过' ? 'green' : 'yellow')}">${ph.tags.nature}</span>`);
+        (ph.tags?.location || []).forEach(loc => tagsHtml.push(`<span class="badge badge-gray">${loc}</span>`));
+        html += `
+          <div class="photo-card" data-photo-id="${ph.id}" onclick="MODULES.progress.viewPhoto('${ph.id}')">
+            <div class="photo-card-img" style="display:flex;align-items:center;justify-content:center;overflow:hidden">
+              <img src="" data-src="${ph.fileName}" alt="${escapeHtml(ph.note || '照片')}" style="width:100%;height:100%;object-fit:cover;display:none" onload="this.style.display='block';this.previousElementSibling.style.display='none'">
+              <div style="color:var(--ink-faint);font-size:2rem">📷</div>
+            </div>
+            <div class="photo-card-info">
+              <div class="flex-between"><span class="text-xs text-faint">${user.avatar} ${user.name}</span></div>
+              <div class="photo-card-tags">${tagsHtml.join('')}</div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function renderPhotos() {
+    const photos = getFilteredPhotos();
+    let html = renderPhotoFilters();
+    html += `
+      <div style="margin-bottom:16px">
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('photoInput').click()">+ 上传照片</button>
+        <input type="file" id="photoInput" accept="image/*" multiple style="display:none" onchange="MODULES.progress.handleFileSelect(this.files)">
+        <span class="text-xs text-faint" style="margin-left:10px">支持拖拽上传</span>
+      </div>
+      <div id="photoDropZone" style="border:2px dashed var(--border-medium);border-radius:var(--radius);padding:40px;text-align:center;color:var(--ink-faint);margin-bottom:20px;display:none">
+        <div style="font-size:2rem;margin-bottom:8px">📥</div>
+        <div>松开鼠标上传照片</div>
+      </div>
+    `;
+    if (photoView === 'grid') html += renderPhotoGrid(photos);
+    else html += renderPhotoTimeline(photos);
+    return html;
+  }
+
+  // ── Photo: Load thumbnails via File System Access API ──
+  async function loadPhotoThumbnails() {
+    if (!App.dirHandle) return;
+    const imgs = container().querySelectorAll('img[data-src]');
+    for (const img of imgs) {
+      const path = img.getAttribute('data-src');
+      if (!path) continue;
+      try {
+        const parts = path.split('/');
+        let handle = App.dirHandle;
+        for (let i = 0; i < parts.length - 1; i++) {
+          if (!parts[i]) continue;
+          handle = await handle.getDirectoryHandle(parts[i], { create: false });
+        }
+        const fileHandle = await handle.getFileHandle(parts[parts.length - 1], { create: false });
+        const file = await fileHandle.getFile();
+        const url = URL.createObjectURL(file);
+        photoObjectURLs.push(url);
+        img.src = url;
+      } catch (e) {
+        // fallback: keep placeholder
+      }
+    }
+  }
+
+  // ── Photo: Upload ──
+  async function savePhotoFile(file, dateFolder) {
+    if (!App.dirHandle) {
+      App.showToast('请先选择项目文件夹', 'warning');
+      return null;
+    }
+    try {
+      let photosDir = await App.dirHandle.getDirectoryHandle('photos', { create: true });
+      let dateDir = await photosDir.getDirectoryHandle(dateFolder, { create: true });
+      const ext = file.name.split('.').pop();
+      const fileName = 'IMG_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5) + '.' + ext;
+      const fileHandle = await dateDir.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(file);
+      await writable.close();
+      return `photos/${dateFolder}/${fileName}`;
+    } catch (e) {
+      App.showToast('保存照片失败: ' + e.message, 'error');
+      return null;
+    }
+  }
+
+  async function handleFileSelect(files) {
+    if (!files || files.length === 0) return;
+    const uploaded = [];
+    for (const file of Array.from(files)) {
+      // Try to read EXIF date, fallback to today
+      let date = getToday();
+      // Simple heuristic: check file name for date pattern YYYYMMDD or use lastModified
+      const nameMatch = file.name.match(/(20\d{2})(\d{2})(\d{2})/);
+      if (nameMatch) date = `${nameMatch[1]}-${nameMatch[2]}-${nameMatch[3]}`;
+      else {
+        const d = new Date(file.lastModified);
+        date = d.toISOString().slice(0, 10);
+      }
+      const path = await savePhotoFile(file, date);
+      if (path) {
+        uploaded.push({
+          id: generateId('ph'),
+          fileName: path,
+          date,
+          takenBy: App.currentUser.id,
+          tags: { phase: '', location: [], nature: '正常进度' },
+          note: ''
+        });
+      }
+    }
+    if (uploaded.length > 0) {
+      data.photos = data.photos || [];
+      data.photos.push(...uploaded);
+      save();
+      render();
+      App.showToast(`已上传 ${uploaded.length} 张照片`, 'success');
+    }
+  }
+
+  // ── Photo: View / Edit / Delete ──
+  async function viewPhoto(photoId) {
+    const ph = (data.photos || []).find(p => p.id === photoId);
+    if (!ph) return;
+    const user = getUser(ph.takenBy);
+    let imgUrl = '';
+    try {
+      const parts = ph.fileName.split('/');
+      let handle = App.dirHandle;
+      for (let i = 0; i < parts.length - 1; i++) {
+        handle = await handle.getDirectoryHandle(parts[i], { create: false });
+      }
+      const fileHandle = await handle.getFileHandle(parts[parts.length - 1], { create: false });
+      const file = await fileHandle.getFile();
+      imgUrl = URL.createObjectURL(file);
+      photoObjectURLs.push(imgUrl);
+    } catch (e) { /* ignore */ }
+
+    const overlay = document.getElementById('modalOverlay');
+    const content = document.getElementById('modalContent');
+    content.innerHTML = `
+      <div class="modal-header">
+        <div class="modal-title">📷 照片详情</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+        <div style="text-align:center;background:var(--cream-deep);border-radius:var(--radius);overflow:hidden">
+          ${imgUrl ? `<img src="${imgUrl}" style="max-width:100%;max-height:50vh;object-fit:contain;display:block;margin:0 auto">` : '<div style="padding:40px;color:var(--ink-faint)">无法加载图片</div>'}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">日期</label>
+            <input type="date" class="app-input" id="photoDate" value="${ph.date}">
+          </div>
+          <div>
+            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">拍摄者</label>
+            <select class="app-input app-select" id="photoUser">
+              ${(App.users || []).map(u => `<option value="${u.id}" ${ph.takenBy === u.id ? 'selected' : ''}>${u.avatar} ${u.name}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">阶段 Tag（单选）</label>
+          <select class="app-input app-select" id="photoPhase">
+            <option value="">未选择</option>
+            ${PHASE_NAMES.map(p => `<option value="${p}" ${ph.tags?.phase === p ? 'selected' : ''}>${p}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">位置 Tag（多选）</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${LOCATION_TAGS.map(loc => `
+              <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer;padding:4px 8px;border-radius:6px;background:var(--cream-deep)">
+                <input type="checkbox" value="${loc}" ${(ph.tags?.location || []).includes(loc) ? 'checked' : ''} class="photoLocCb">
+                ${loc}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">性质 Tag（单选）</label>
+          <select class="app-input app-select" id="photoNature">
+            ${NATURE_TAGS.map(n => `<option value="${n}" ${ph.tags?.nature === n ? 'selected' : ''}>${n}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">备注</label>
+          <textarea class="app-input app-textarea" id="photoNote" rows="2">${escapeHtml(ph.note || '')}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" onclick="MODULES.progress.deletePhoto('${ph.id}')">🗑 删除</button>
+        <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
+        <button class="btn btn-primary" id="btnSavePhoto">保存</button>
+      </div>
+    `;
+    overlay.classList.add('show');
+
+    document.getElementById('btnSavePhoto').addEventListener('click', () => {
+      ph.date = document.getElementById('photoDate').value;
+      ph.takenBy = document.getElementById('photoUser').value;
+      ph.tags = {
+        phase: document.getElementById('photoPhase').value,
+        location: Array.from(document.querySelectorAll('.photoLocCb:checked')).map(cb => cb.value),
+        nature: document.getElementById('photoNature').value
+      };
+      ph.note = document.getElementById('photoNote').value;
+      save();
+      closeModal();
+      render();
+      App.showToast('照片信息已更新', 'success');
+    });
+  }
+
+  async function deletePhoto(photoId) {
+    const ok = await App.confirm('确定要删除这张照片吗？文件将从本地文件夹中移除。');
+    if (!ok) return;
+    const idx = (data.photos || []).findIndex(p => p.id === photoId);
+    if (idx === -1) return;
+    const ph = data.photos[idx];
+    // Delete file
+    if (App.dirHandle && ph.fileName) {
+      try {
+        const parts = ph.fileName.split('/');
+        let handle = App.dirHandle;
+        for (let i = 0; i < parts.length - 1; i++) {
+          handle = await handle.getDirectoryHandle(parts[i], { create: false });
+        }
+        await handle.removeEntry(parts[parts.length - 1]);
+      } catch (e) { /* ignore */ }
+    }
+    data.photos.splice(idx, 1);
+    save();
+    closeModal();
+    render();
+    App.showToast('照片已删除', 'success');
+  }
+
+  // ── Filters & View ──
+  function setFilter(key, value) {
+    photoFilters[key] = value;
+    render();
+  }
+
+  function setPhotoView(view) {
+    photoView = view;
+    render();
+  }
+
+  // ── Drag & Drop ──
+  function setupDragDrop() {
+    const zone = container();
+    if (!zone) return;
+    zone.addEventListener('dragover', e => {
+      if (currentTab !== 'photos') return;
+      e.preventDefault();
+      const dz = document.getElementById('photoDropZone');
+      if (dz) dz.style.display = 'block';
+    });
+    zone.addEventListener('dragleave', e => {
+      e.preventDefault();
+      const dz = document.getElementById('photoDropZone');
+      if (dz && !zone.contains(e.relatedTarget)) dz.style.display = 'none';
+    });
+    zone.addEventListener('drop', e => {
+      if (currentTab !== 'photos') return;
+      e.preventDefault();
+      const dz = document.getElementById('photoDropZone');
+      if (dz) dz.style.display = 'none';
+      const files = e.dataTransfer.files;
+      if (files.length) handleFileSelect(files);
+    });
+  }
+
+  // ── Main Render ──
+  function render() {
+    const el = container();
+    if (!el) return;
+    // Clean up old object URLs
+    photoObjectURLs.forEach(url => URL.revokeObjectURL(url));
+    photoObjectURLs = [];
+
+    let html = renderTabs();
+    if (currentTab === 'phases') html += renderPhases();
+    else html += renderPhotos();
+    el.innerHTML = html;
+
+    // Bind tab clicks
+    el.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        currentTab = tab.dataset.tab;
+        render();
+      });
+    });
+
+    // Load photo thumbnails
+    if (currentTab === 'photos') {
+      loadPhotoThumbnails();
+    }
+  }
+
+  // ── Module API ──
+  const module = {
+    name: '进度',
+    icon: '📅',
+
+    init() {
+      const el = container();
+      if (el) {
+        el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">加载中...</div></div>';
+      }
+      setupDragDrop();
+    },
+
+    render() {
+      render();
+    },
+
+    onShow() {
+      // Refresh data from App
+      const d = App.getData('progress');
+      if (d) {
+        data = d;
+        ensureDefaultPhases();
+      }
+      render();
+    },
+
+    onHide() {
+      // Clean up object URLs
+      photoObjectURLs.forEach(url => URL.revokeObjectURL(url));
+      photoObjectURLs = [];
+    },
+
+    getData() {
+      return JSON.parse(JSON.stringify(data));
+    },
+
+    setData(d) {
+      if (d) {
+        data = d;
+        ensureDefaultPhases();
+      }
+    },
+
+    isDirty() {
+      return false; // auto-save handles this
+    },
+
+    // Exposed for inline onclick handlers
+    editPhase,
+    setCurrentPhase,
+    handleFileSelect,
+    viewPhoto,
+    deletePhoto,
+    setFilter,
+    setPhotoView
+  };
+
+  registerModule('progress', module);
+})();
+
+</script>
+
+<!-- ====== COMMUNICATIONS.JS ====== -->
+<script>
+// Communications Module
+(function() {
+  let data = { version: '1.0', updatedAt: new Date().toISOString(), records: [] };
+  let currentTab = 'records'; // 'records' | 'todos'
+  let editingRecordId = null;
+  let kanbanFilterAssignee = 'all';
+
+  // ==================== UTILITIES ====================
+
+  function getUserById(id) {
+    return (window.App && App.users ? App.users : []).find(u => u.id === id);
+  }
+
+  function getCurrentUser() {
+    return window.App ? App.currentUser : { id: 'user_1', name: '你', avatar: '👩' };
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d)) return dateStr;
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${day}`;
+  }
+
+  function todayStr() {
+    return formatDate(new Date());
+  }
+
+  function isOverdue(todo) {
+    if (todo.status === '已完成') return false;
+    if (!todo.deadline) return false;
+    const deadline = new Date(todo.deadline + 'T23:59:59');
+    return deadline < new Date();
+  }
+
+  function getTodoStatus(todo) {
+    if (todo.status === '已完成') return '已完成';
+    if (isOverdue(todo)) return '逾期';
+    return '待办';
+  }
+
+  function updateTodoStatuses() {
+    (data.records || []).forEach(rec => {
+      (rec.todos || []).forEach(todo => {
+        if (todo.status !== '已完成' && isOverdue(todo)) {
+          todo.status = '逾期';
+        }
+      });
+    });
+  }
+
+  function generateId(prefix) {
+    return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+  }
+
+  function getPhases() {
+    const progress = window.App ? App.getData('progress') : null;
+    return (progress && progress.phases) ? progress.phases : [];
+  }
+
+  function saveData() {
+    data.updatedAt = new Date().toISOString();
+    if (window.App) App.setData('communications', data);
+  }
+
+  // ==================== RENDER: RECORDS LIST ====================
+
+  function renderRecordsList(container) {
+    updateTodoStatuses();
+    const records = [...(data.records || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+    if (records.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">💬</div>
+          <div class="empty-state-text">暂无沟通记录</div>
+          <button class="btn btn-primary" onclick="window.commOpenRecordModal()">+ 新增记录</button>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = records.map(rec => {
+      const author = getUserById(rec.author);
+      const authorName = author ? author.name : '未知';
+      const authorAvatar = author ? author.avatar : '👤';
+      const todos = rec.todos || [];
+      const overdueCount = todos.filter(t => getTodoStatus(t) === '逾期').length;
+      const todoText = todos.length > 0
+        ? `待办 ${todos.length} 项${overdueCount > 0 ? `（<span style="color:var(--red)">${overdueCount} 逾期</span>）` : '（全部完成）'}`
+        : '';
+
+      return `
+        <div class="comm-card" data-id="${rec.id}" onclick="window.commOpenRecordModal('${rec.id}')">
+          <div class="comm-header">
+            <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+              <span style="font-size:0.85rem;color:var(--ink-faint);white-space:nowrap">📅 ${rec.date || '未设定'}</span>
+              <span class="comm-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(rec.title || '无标题')}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:10px">
+              <span>${authorAvatar}</span>
+              <span style="font-size:0.8rem;color:var(--ink-light)">${authorName}</span>
+            </div>
+          </div>
+          <div class="comm-meta">
+            ${rec.participants && rec.participants.length ? '参与：' + escapeHtml(rec.participants.join('、')) : '无参与方'}
+            ${rec.location ? ' | 📍 ' + escapeHtml(rec.location) : ''}
+          </div>
+          ${todoText ? `<div class="comm-todos"><span class="badge ${overdueCount > 0 ? 'badge-red' : 'badge-green'}">${todoText}</span></div>` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ==================== RENDER: TODO KANBAN ====================
+
+  function renderTodoKanban(container) {
+    updateTodoStatuses();
+    const allTodos = [];
+    (data.records || []).forEach(rec => {
+      (rec.todos || []).forEach(todo => {
+        allTodos.push({ ...todo, recordId: rec.id, recordTitle: rec.title || '无标题' });
+      });
+    });
+
+    const filtered = kanbanFilterAssignee === 'all'
+      ? allTodos
+      : allTodos.filter(t => t.assignee === kanbanFilterAssignee);
+
+    const groups = {
+      '逾期': filtered.filter(t => getTodoStatus(t) === '逾期').sort((a, b) => (a.deadline || '').localeCompare(b.deadline || '')),
+      '待办': filtered.filter(t => getTodoStatus(t) === '待办').sort((a, b) => (a.deadline || '').localeCompare(b.deadline || '')),
+      '已完成': filtered.filter(t => getTodoStatus(t) === '已完成').sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''))
+    };
+
+    const users = window.App ? App.users : [{ id: 'user_1', name: '你' }, { id: 'user_2', name: '男朋友' }];
+
+    container.innerHTML = `
+      <div class="filter-bar" style="margin-bottom:16px">
+        <label style="font-size:0.8rem;color:var(--ink-light)">筛选负责人：</label>
+        <select class="app-input app-select" style="width:auto;min-width:140px" onchange="window.commSetKanbanFilter(this.value)">
+          <option value="all" ${kanbanFilterAssignee === 'all' ? 'selected' : ''}>全部</option>
+          ${users.map(u => `<option value="${u.id}" ${kanbanFilterAssignee === u.id ? 'selected' : ''}>${u.avatar || ''} ${escapeHtml(u.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="kanban">
+        ${renderKanbanCol('逾期', groups['逾期'], 'var(--red)', '🔴')}
+        ${renderKanbanCol('待办', groups['待办'], 'var(--blue)', '⏳')}
+        ${renderKanbanCol('已完成', groups['已完成'], 'var(--green)', '✅')}
+      </div>
+    `;
+  }
+
+  function renderKanbanCol(title, items, color, icon) {
+    return `
+      <div class="kanban-col">
+        <div class="kanban-col-header" style="border-bottom-color:${color}">
+          <span class="kanban-col-title" style="color:${color}">${icon} ${title}</span>
+          <span class="kanban-col-count">${items.length}</span>
+        </div>
+        ${items.length === 0 ? '<div style="text-align:center;color:var(--ink-faint);font-size:0.8rem;padding:20px 0">暂无事项</div>' : ''}
+        ${items.map(item => {
+          const assignee = getUserById(item.assignee);
+          const assigneeName = assignee ? assignee.name : '未分配';
+          const isOverdueItem = title === '逾期';
+          const overdueDays = isOverdueItem && item.deadline
+            ? Math.ceil((new Date() - new Date(item.deadline + 'T00:00:00')) / (1000 * 60 * 60 * 24))
+            : 0;
+
+          return `
+            <div class="kanban-item ${isOverdueItem ? 'overdue' : ''}" data-todo-id="${item.id}" data-record-id="${item.recordId}">
+              <div style="font-weight:500;font-size:0.85rem;margin-bottom:6px">${escapeHtml(item.content)}</div>
+              <div style="font-size:0.75rem;color:var(--ink-faint);display:flex;justify-content:space-between;align-items:center">
+                <span>👤 ${escapeHtml(assigneeName)}</span>
+                <span>${item.deadline ? '截止:' + item.deadline.substr(5) : ''}</span>
+              </div>
+              ${isOverdueItem && overdueDays > 0 ? `<div style="font-size:0.75rem;color:var(--red);margin-top:4px">逾期 ${overdueDays} 天</div>` : ''}
+              <div style="display:flex;gap:6px;margin-top:8px">
+                ${title !== '待办' ? `<button class="btn btn-sm btn-secondary" style="height:26px;padding:0 8px;font-size:0.75rem" onclick="window.commMoveTodo('${item.recordId}','${item.id}','待办');event.stopPropagation();">↩ 待办</button>` : ''}
+                ${title !== '已完成' ? `<button class="btn btn-sm btn-primary" style="height:26px;padding:0 8px;font-size:0.75rem" onclick="window.commMoveTodo('${item.recordId}','${item.id}','已完成');event.stopPropagation();">✓ 完成</button>` : ''}
+                ${title === '已完成' ? `<button class="btn btn-sm btn-secondary" style="height:26px;padding:0 8px;font-size:0.75rem" onclick="window.commMoveTodo('${item.recordId}','${item.id}','待办');event.stopPropagation();">↩ 撤销</button>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  // ==================== MODAL: RECORD EDIT ====================
+
+  function openRecordModal(recordId) {
+    editingRecordId = recordId || null;
+    const rec = recordId ? (data.records || []).find(r => r.id === recordId) : null;
+    const isEdit = !!rec;
+    const users = window.App ? App.users : [{ id: 'user_1', name: '你', avatar: '👩' }, { id: 'user_2', name: '男朋友', avatar: '👨' }];
+    const phases = getPhases();
+
+    const overlay = document.getElementById('modalOverlay');
+    const content = document.getElementById('modalContent');
+    content.style.maxWidth = '720px';
+
+    content.innerHTML = `
+      <div class="modal-header">
+        <div class="modal-title">${isEdit ? '✏️ 编辑沟通记录' : '➕ 新增沟通记录'}</div>
+        <button class="modal-close" onclick="window.commCloseModal()">×</button>
+      </div>
+      <div class="modal-body" id="commModalBody">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div>
+            <label style="display:block;font-size:0.78rem;color:var(--ink-light);margin-bottom:4px">日期 *</label>
+            <input type="date" class="app-input" id="commDate" value="${rec ? rec.date : todayStr()}">
+          </div>
+          <div>
+            <label style="display:block;font-size:0.78rem;color:var(--ink-light);margin-bottom:4px">作者</label>
+            <select class="app-input app-select" id="commAuthor">
+              ${users.map(u => `<option value="${u.id}" ${(rec ? rec.author : getCurrentUser().id) === u.id ? 'selected' : ''}>${u.avatar} ${escapeHtml(u.name)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.78rem;color:var(--ink-light);margin-bottom:4px">标题 *</label>
+          <input type="text" class="app-input" id="commTitle" value="${escapeHtml(rec ? rec.title : '')}" placeholder="例如：水电交底">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div>
+            <label style="display:block;font-size:0.78rem;color:var(--ink-light);margin-bottom:4px">参与方（用顿号分隔）</label>
+            <input type="text" class="app-input" id="commParticipants" value="${escapeHtml(rec && rec.participants ? rec.participants.join('、') : '')}" placeholder="例如：项目经理王工、水电工李师傅">
+          </div>
+          <div>
+            <label style="display:block;font-size:0.78rem;color:var(--ink-light);margin-bottom:4px">地点</label>
+            <input type="text" class="app-input" id="commLocation" value="${escapeHtml(rec ? rec.location : '')}" placeholder="例如：装修公司门店">
+          </div>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.78rem;color:var(--ink-light);margin-bottom:4px">关联阶段</label>
+          <select class="app-input app-select" id="commPhase">
+            <option value="">-- 无 --</option>
+            ${phases.map(p => `<option value="${p.id}" ${(rec ? rec.phaseId : '') === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.78rem;color:var(--ink-light);margin-bottom:4px">纪要内容</label>
+          <textarea class="app-input app-textarea" id="commContent" placeholder="可粘贴飞书会议纪要...">${escapeHtml(rec ? rec.content : '')}</textarea>
+        </div>
+
+        <!-- 关键结论 -->
+        <div style="margin-bottom:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <label style="font-size:0.78rem;color:var(--ink-light)">关键结论</label>
+            <button class="btn btn-sm btn-secondary" onclick="window.commAddDecision()" style="height:28px">+ 添加</button>
+          </div>
+          <div id="commDecisionsList">
+            ${(rec ? rec.keyDecisions || [] : []).map((d, i) => renderDecisionRow(i, d)).join('')}
+          </div>
+        </div>
+
+        <!-- 待办事项 -->
+        <div style="margin-bottom:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <label style="font-size:0.78rem;color:var(--ink-light)">待办事项</label>
+            <button class="btn btn-sm btn-secondary" onclick="window.commAddTodo()" style="height:28px">+ 添加</button>
+          </div>
+          <div id="commTodosList">
+            ${(rec ? rec.todos || [] : []).map((t, i) => renderTodoRow(i, t)).join('')}
+          </div>
+        </div>
+
+        <!-- 问题/疑虑 -->
+        <div style="margin-bottom:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <label style="font-size:0.78rem;color:var(--ink-light)">问题 / 疑虑</label>
+            <button class="btn btn-sm btn-secondary" onclick="window.commAddConcern()" style="height:28px">+ 添加</button>
+          </div>
+          <div id="commConcernsList">
+            ${(rec ? rec.concerns || [] : []).map((c, i) => renderConcernRow(i, c)).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        ${isEdit ? `<button class="btn btn-danger" onclick="window.commDeleteRecord()">🗑 删除</button>` : ''}
+        <div style="flex:1"></div>
+        <button class="btn btn-secondary" onclick="window.commCloseModal()">取消</button>
+        <button class="btn btn-primary" onclick="window.commSaveRecord()">保存</button>
+      </div>
+    `;
+
+    overlay.classList.add('show');
+  }
+
+  function renderDecisionRow(index, value) {
+    return `
+      <div class="flex gap-8" style="margin-bottom:6px;align-items:center" data-decision-index="${index}">
+        <input type="text" class="app-input" value="${escapeHtml(value || '')}" placeholder="输入关键结论..." style="flex:1">
+        <button class="btn-icon" onclick="window.commRemoveDecision(${index})" title="删除">×</button>
+      </div>
+    `;
+  }
+
+  function renderTodoRow(index, todo) {
+    const users = window.App ? App.users : [{ id: 'user_1', name: '你' }, { id: 'user_2', name: '男朋友' }];
+    const t = todo || {};
+    return `
+      <div style="margin-bottom:8px;padding:10px;border:1px solid var(--border-light);border-radius:var(--radius-sm);background:var(--cream)" data-todo-index="${index}">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+          <input type="text" class="app-input" value="${escapeHtml(t.content || '')}" placeholder="待办内容...">
+          <select class="app-input app-select">
+            ${users.map(u => `<option value="${u.id}" ${t.assignee === u.id ? 'selected' : ''}>${u.avatar || ''} ${escapeHtml(u.name)}</option>`).join('')}
+          </select>
+          <input type="date" class="app-input" value="${t.deadline || ''}">
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <select class="app-input app-select" style="width:auto;min-width:100px">
+            <option value="待办" ${t.status === '待办' ? 'selected' : ''}>待办</option>
+            <option value="已完成" ${t.status === '已完成' ? 'selected' : ''}>已完成</option>
+            <option value="逾期" ${t.status === '逾期' ? 'selected' : ''}>逾期</option>
+          </select>
+          <button class="btn btn-sm btn-danger" onclick="window.commRemoveTodo(${index})" style="height:28px;padding:0 10px;font-size:0.75rem">删除</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderConcernRow(index, value) {
+    return `
+      <div class="flex gap-8" style="margin-bottom:6px;align-items:center" data-concern-index="${index}">
+        <input type="text" class="app-input" value="${escapeHtml(value || '')}" placeholder="输入问题或疑虑..." style="flex:1">
+        <button class="btn-icon" onclick="window.commRemoveConcern(${index})" title="删除">×</button>
+      </div>
+    `;
+  }
+
+  // ==================== MODAL ACTIONS ====================
+
+  function addDecision() {
+    const list = document.getElementById('commDecisionsList');
+    const index = list.querySelectorAll('[data-decision-index]').length;
+    const div = document.createElement('div');
+    div.innerHTML = renderDecisionRow(index, '');
+    list.appendChild(div.firstElementChild);
+  }
+
+  function removeDecision(index) {
+    const list = document.getElementById('commDecisionsList');
+    const rows = Array.from(list.querySelectorAll('[data-decision-index]'));
+    if (rows[index]) rows[index].remove();
+    // Re-index
+    list.querySelectorAll('[data-decision-index]').forEach((el, i) => {
+      el.dataset.decisionIndex = i;
+      const btn = el.querySelector('button');
+      if (btn) btn.setAttribute('onclick', `window.commRemoveDecision(${i})`);
+    });
+  }
+
+  function addTodo() {
+    const list = document.getElementById('commTodosList');
+    const index = list.querySelectorAll('[data-todo-index]').length;
+    const div = document.createElement('div');
+    div.innerHTML = renderTodoRow(index, { assignee: getCurrentUser().id, status: '待办' });
+    list.appendChild(div.firstElementChild);
+  }
+
+  function removeTodo(index) {
+    const list = document.getElementById('commTodosList');
+    const rows = Array.from(list.querySelectorAll('[data-todo-index]'));
+    if (rows[index]) rows[index].remove();
+    list.querySelectorAll('[data-todo-index]').forEach((el, i) => {
+      el.dataset.todoIndex = i;
+      const btn = el.querySelector('button[onclick^="window.commRemoveTodo"]');
+      if (btn) btn.setAttribute('onclick', `window.commRemoveTodo(${i})`);
+    });
+  }
+
+  function addConcern() {
+    const list = document.getElementById('commConcernsList');
+    const index = list.querySelectorAll('[data-concern-index]').length;
+    const div = document.createElement('div');
+    div.innerHTML = renderConcernRow(index, '');
+    list.appendChild(div.firstElementChild);
+  }
+
+  function removeConcern(index) {
+    const list = document.getElementById('commConcernsList');
+    const rows = Array.from(list.querySelectorAll('[data-concern-index]'));
+    if (rows[index]) rows[index].remove();
+    list.querySelectorAll('[data-concern-index]').forEach((el, i) => {
+      el.dataset.concernIndex = i;
+      const btn = el.querySelector('button');
+      if (btn) btn.setAttribute('onclick', `window.commRemoveConcern(${i})`);
+    });
+  }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('show');
+    const content = document.getElementById('modalContent');
+    content.style.maxWidth = '';
+    editingRecordId = null;
+  }
+
+  async function deleteRecord() {
+    if (!editingRecordId) return;
+    const ok = await (window.App ? App.confirm('确定要删除这条沟通记录吗？') : confirm('确定要删除这条沟通记录吗？'));
+    if (!ok) return;
+    data.records = (data.records || []).filter(r => r.id !== editingRecordId);
+    saveData();
+    closeModal();
+    render();
+    if (window.App) App.showToast('记录已删除', 'success');
+  }
+
+  function saveRecord() {
+    const date = document.getElementById('commDate').value;
+    const author = document.getElementById('commAuthor').value;
+    const title = document.getElementById('commTitle').value.trim();
+    const participantsStr = document.getElementById('commParticipants').value.trim();
+    const location = document.getElementById('commLocation').value.trim();
+    const phaseId = document.getElementById('commPhase').value || null;
+    const content = document.getElementById('commContent').value.trim();
+
+    if (!date || !title) {
+      if (window.App) App.showToast('请填写日期和标题', 'warning');
+      return;
+    }
+
+    // Collect decisions
+    const keyDecisions = [];
+    document.querySelectorAll('#commDecisionsList [data-decision-index]').forEach(el => {
+      const input = el.querySelector('input');
+      if (input && input.value.trim()) keyDecisions.push(input.value.trim());
+    });
+
+    // Collect todos
+    const todos = [];
+    document.querySelectorAll('#commTodosList [data-todo-index]').forEach(el => {
+      const inputs = el.querySelectorAll('input, select');
+      const todoContent = inputs[0] ? inputs[0].value.trim() : '';
+      const todoAssignee = inputs[1] ? inputs[1].value : getCurrentUser().id;
+      const todoDeadline = inputs[2] ? inputs[2].value : '';
+      const todoStatus = inputs[3] ? inputs[3].value : '待办';
+      if (todoContent) {
+        const existingId = editingRecordId ? findTodoId(editingRecordId, todoContent, todoAssignee, todoDeadline) : null;
+        const todoObj = {
+          id: existingId || generateId('todo'),
+          content: todoContent,
+          assignee: todoAssignee,
+          deadline: todoDeadline,
+          status: todoStatus,
+          completedAt: todoStatus === '已完成' ? (new Date().toISOString()) : null
+        };
+        // If already completed and has completedAt, preserve it
+        if (existingId) {
+          const rec = (data.records || []).find(r => r.id === editingRecordId);
+          const oldTodo = rec && rec.todos ? rec.todos.find(t => t.id === existingId) : null;
+          if (oldTodo && oldTodo.completedAt && todoStatus === '已完成') {
+            todoObj.completedAt = oldTodo.completedAt;
+          }
+        }
+        todos.push(todoObj);
+      }
+    });
+
+    // Collect concerns
+    const concerns = [];
+    document.querySelectorAll('#commConcernsList [data-concern-index]').forEach(el => {
+      const input = el.querySelector('input');
+      if (input && input.value.trim()) concerns.push(input.value.trim());
+    });
+
+    const participants = participantsStr ? participantsStr.split(/[,，、]/).map(s => s.trim()).filter(Boolean) : [];
+
+    const record = {
+      id: editingRecordId || generateId('comm'),
+      date,
+      author,
+      participants,
+      location,
+      phaseId,
+      title,
+      content,
+      keyDecisions,
+      todos,
+      concerns,
+      createdAt: editingRecordId ? ((data.records || []).find(r => r.id === editingRecordId) || {}).createdAt || new Date().toISOString() : new Date().toISOString()
+    };
+
+    if (!data.records) data.records = [];
+    if (editingRecordId) {
+      const idx = data.records.findIndex(r => r.id === editingRecordId);
+      if (idx >= 0) data.records[idx] = record;
+      else data.records.push(record);
+    } else {
+      data.records.push(record);
+    }
+
+    saveData();
+    closeModal();
+    render();
+    if (window.App) App.showToast(editingRecordId ? '记录已更新' : '记录已添加', 'success');
+  }
+
+  function findTodoId(recordId, content, assignee, deadline) {
+    const rec = (data.records || []).find(r => r.id === recordId);
+    if (!rec || !rec.todos) return null;
+    // Try to match by content + assignee + deadline for existing todos
+    const match = rec.todos.find(t => t.content === content && t.assignee === assignee && t.deadline === deadline);
+    return match ? match.id : null;
+  }
+
+  // ==================== KANBAN ACTIONS ====================
+
+  function setKanbanFilter(value) {
+    kanbanFilterAssignee = value;
+    render();
+  }
+
+  function moveTodo(recordId, todoId, newStatus) {
+    const rec = (data.records || []).find(r => r.id === recordId);
+    if (!rec || !rec.todos) return;
+    const todo = rec.todos.find(t => t.id === todoId);
+    if (!todo) return;
+    todo.status = newStatus;
+    if (newStatus === '已完成') {
+      todo.completedAt = new Date().toISOString();
+    } else {
+      todo.completedAt = null;
+    }
+    saveData();
+    render();
+    if (window.App) App.showToast('状态已更新', 'success');
+  }
+
+  // ==================== RENDER MAIN ====================
+
+  function render() {
+    const container = document.getElementById('communications-content');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="tab-bar">
+        <button class="tab ${currentTab === 'records' ? 'active' : ''}" onclick="window.commSwitchTab('records')">全部记录</button>
+        <button class="tab ${currentTab === 'todos' ? 'active' : ''}" onclick="window.commSwitchTab('todos')">待办看板</button>
+      </div>
+      <div id="commTabContent"></div>
+    `;
+
+    const tabContent = document.getElementById('commTabContent');
+    if (currentTab === 'records') {
+      renderRecordsList(tabContent);
+    } else {
+      renderTodoKanban(tabContent);
+    }
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    render();
+  }
+
+  // ==================== ESCAPE HTML ====================
+
+  function escapeHtml(text) {
+    if (text == null) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ==================== EXPOSE GLOBALS ====================
+
+  window.commOpenRecordModal = openRecordModal;
+  window.commCloseModal = closeModal;
+  window.commSaveRecord = saveRecord;
+  window.commDeleteRecord = deleteRecord;
+  window.commSwitchTab = switchTab;
+  window.commAddDecision = addDecision;
+  window.commRemoveDecision = removeDecision;
+  window.commAddTodo = addTodo;
+  window.commRemoveTodo = removeTodo;
+  window.commAddConcern = addConcern;
+  window.commRemoveConcern = removeConcern;
+  window.commSetKanbanFilter = setKanbanFilter;
+  window.commMoveTodo = moveTodo;
+
+  // ==================== REGISTER MODULE ====================
+
+  registerModule('communications', {
+    name: '沟通',
+    init() {
+      const btn = document.getElementById('btnAddComm');
+      if (btn) btn.addEventListener('click', () => openRecordModal());
+    },
+    render() {
+      render();
+    },
+    onShow() {
+      // Refresh phases data when shown in case progress module updated
+      render();
+    },
+    setData(d) {
+      data = d || { version: '1.0', updatedAt: new Date().toISOString(), records: [] };
+    }
+  });
+})();
+
+</script>
 
 </body>
 </html>

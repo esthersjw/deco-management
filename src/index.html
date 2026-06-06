@@ -1865,7 +1865,9 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     try {
       const ext = fileName.split('.').pop();
-      const safePath = `projects/${window.App.currentProject.id}/documents/${category}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      // 使用英文安全路径，避免中文文件夹名导致 Invalid key 错误
+      const safeCategory = encodeURIComponent(category).replace(/%/g, '_');
+      const safePath = `projects/${window.App.currentProject.id}/documents/${safeCategory}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const result = await window.App.uploadFile('documents', safePath, file);
       if (result.error) throw result.error;
       return result.url;

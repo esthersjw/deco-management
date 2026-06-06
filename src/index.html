@@ -3513,7 +3513,9 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       const ext = file.name.split('.').pop();
       const fileName = 'IMG_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5) + '.' + ext;
-      const safePath = `projects/${App.currentProject.id}/photos/${dateFolder}/${fileName}`;
+      // 确保 dateFolder 安全（移除特殊字符）
+      const safeDateFolder = dateFolder.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const safePath = `projects/${App.currentProject.id}/photos/${safeDateFolder}/${fileName}`;
       const result = await App.uploadFile('images', safePath, file);
       if (result.error) throw result.error;
       return result.url;

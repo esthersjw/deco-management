@@ -997,164 +997,163 @@ function registerModule(id, module) {
   if (module.init) module.init();
 }
 
-// ==================== SETTINGS ====================
-
-document.getElementById('settingsBtn').addEventListener('click', () => {
-  const overlay = document.getElementById('modalOverlay');
-  const content = document.getElementById('modalContent');
-  const userName = App.currentUser?.profile?.name || App.currentUser?.email?.split('@')[0] || '用户';
-  
-  // 生成家庭成员列表HTML
-  const users = App.config.users || DEFAULT_CONFIG.users;
-  const currentOpId = App.config.currentUserId || 'user_1';
-  
-  function generateUserRows() {
-    return users.map((u, idx) => `
-      <div class="settings-user-row" data-user-id="${u.id}">
-        <div class="settings-user-avatar">
-          <select class="app-input settings-avatar-select" data-idx="${idx}">
-            ${['👩','👨','👧','👦','👵','👴','🧑','🧒','🐱','🐶','🌸','⭐','🏠','💼'].map(emoji => 
-              `<option value="${emoji}" ${u.avatar === emoji ? 'selected' : ''}>${emoji}</option>`
-            ).join('')}
-          </select>
-        </div>
-        <div class="settings-user-name">
-          <input type="text" class="app-input settings-name-input" data-idx="${idx}" value="${escapeHtml(u.name)}" placeholder="姓名">
-        </div>
-        <button class="btn btn-icon settings-user-delete" data-idx="${idx}" ${users.length <= 1 ? 'disabled' : ''} title="删除">
-          🗑️
-        </button>
-      </div>
-    `).join('');
-  }
-  
-  content.innerHTML = `
-    <div class="modal-header">
-      <div class="modal-title">🔧 设置</div>
-      <button class="modal-close" onclick="closeModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <!-- 项目名称 -->
-      <div style="margin-bottom:20px">
-        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">小家名称</label>
-        <input type="text" class="app-input" id="settingProjectName" value="${App.currentProject?.name || App.config.projectName || '我们的家'}" placeholder="给我们的家起个名字">
-      </div>
-      
-      <!-- 当前操作人 -->
-      <div style="margin-bottom:20px">
-        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">当前操作人</label>
-        <select class="app-input" id="settingCurrentUser">
-          ${users.map(u => `<option value="${u.id}" ${u.id === currentOpId ? 'selected' : ''}>${u.avatar} ${escapeHtml(u.name)}</option>`).join('')}
-        </select>
-        <div style="font-size:0.75rem;color:var(--ink-light);margin-top:4px">切换后，新增的记录将标记为此人</div>
-      </div>
-      
-      <!-- 家庭成员管理 -->
-      <div style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <label style="font-size:0.8rem;color:var(--ink-light);font-weight:600">家庭成员</label>
-          <button class="btn btn-secondary btn-sm" id="btnAddMember" style="font-size:0.8rem;padding:4px 10px">
-            + 添加成员
-          </button>
-        </div>
-        <div id="settingsUsersList" style="display:flex;flex-direction:column;gap:8px">
-          ${generateUserRows()}
-        </div>
-      </div>
-      
-      <!-- 登录账号信息 -->
-      <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(26,26,26,0.06)">
-        <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">登录账号</label>
-        <div class="app-input" style="background:var(--cream-deep);font-size:0.85rem">${App.currentUser?.email || userName}</div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
-      <button class="btn btn-primary" id="btnSaveSettings">保存</button>
-    </div>
-  `;
-  
-  // 添加成员按钮事件
-  document.getElementById('btnAddMember').addEventListener('click', () => {
-    const newId = 'user_' + (Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
-    users.push({ id: newId, name: '新成员', avatar: '🧑' });
-    refreshUserRows();
-  });
-  
-  // 刷新用户列表
-  function refreshUserRows() {
-    const container = document.getElementById('settingsUsersList');
-    container.innerHTML = generateUserRows();
-    bindUserRowEvents();
-    
-    // 更新当前操作人下拉框
-    const currentSelect = document.getElementById('settingCurrentUser');
-    const currentVal = currentSelect.value;
-    currentSelect.innerHTML = users.map(u => `<option value="${u.id}" ${u.id === currentVal ? 'selected' : ''}>${u.avatar} ${escapeHtml(u.name)}</option>`).join('');
-  }
-  
-  // 绑定用户行事件
-  function bindUserRowEvents() {
-    // 删除按钮
-    document.querySelectorAll('.settings-user-delete').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const idx = parseInt(e.target.dataset.idx);
-        if (users.length > 1) {
-          users.splice(idx, 1);
-          refreshUserRows();
-        }
-      });
-    });
-  }
-  
-  bindUserRowEvents();
-  overlay.classList.add('show');
-
-  document.getElementById('btnSaveSettings').addEventListener('click', async () => {
-    // 收集用户数据
-    const nameInputs = document.querySelectorAll('.settings-name-input');
-    const avatarSelects = document.querySelectorAll('.settings-avatar-select');
-    
-    const newUsers = [];
-    nameInputs.forEach((input, idx) => {
-      const name = input.value.trim() || '未命名';
-      const avatar = avatarSelects[idx]?.value || '🧑';
-      const id = users[idx]?.id || ('user_' + Date.now().toString(36));
-      newUsers.push({ id, name, avatar });
-    });
-    
-    // 更新配置
-    App.config.users = newUsers;
-    App.users = newUsers;
-    App.config.currentUserId = document.getElementById('settingCurrentUser').value || newUsers[0]?.id;
-    
-    // 项目名称
-    const newName = document.getElementById('settingProjectName').value || '我们的家';
-    App.config.projectName = newName;
-    if (App.currentProject) {
-      await App.update('projects', App.currentProject.id, { name: newName });
-      App.currentProject.name = newName;
-    }
-    
-    updateProjectName();
-    App.setData('config', App.config);
-    closeModal();
-    App.showToast('设置已保存', 'success');
-    
-    // 刷新当前模块以应用新用户名称
-    const activeModule = document.querySelector('.module-content.active');
-    if (activeModule) {
-      const moduleId = activeModule.id.replace('module-', '');
-      if (MODULES[moduleId] && MODULES[moduleId].render) {
-        MODULES[moduleId].render();
-      }
-    }
-  });
-});
-
 // ==================== INIT ====================
 
 window.addEventListener('DOMContentLoaded', () => {
+  // 设置按钮事件绑定
+  document.getElementById('settingsBtn').addEventListener('click', () => {
+    const overlay = document.getElementById('modalOverlay');
+    const content = document.getElementById('modalContent');
+    const userName = App.currentUser?.profile?.name || App.currentUser?.email?.split('@')[0] || '用户';
+    
+    // 生成家庭成员列表HTML
+    const users = App.config.users || DEFAULT_CONFIG.users;
+    const currentOpId = App.config.currentUserId || 'user_1';
+    
+    function generateUserRows() {
+      return users.map((u, idx) => `
+        <div class="settings-user-row" data-user-id="${u.id}">
+          <div class="settings-user-avatar">
+            <select class="app-input settings-avatar-select" data-idx="${idx}">
+              ${['👩','👨','👧','👦','👵','👴','🧑','🧒','🐱','🐶','🌸','⭐','🏠','💼'].map(emoji => 
+                `<option value="${emoji}" ${u.avatar === emoji ? 'selected' : ''}>${emoji}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="settings-user-name">
+            <input type="text" class="app-input settings-name-input" data-idx="${idx}" value="${escapeHtml(u.name)}" placeholder="姓名">
+          </div>
+          <button class="btn btn-icon settings-user-delete" data-idx="${idx}" ${users.length <= 1 ? 'disabled' : ''} title="删除">
+            🗑️
+          </button>
+        </div>
+      `).join('');
+    }
+    
+    content.innerHTML = `
+      <div class="modal-header">
+        <div class="modal-title">🔧 设置</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <!-- 项目名称 -->
+        <div style="margin-bottom:20px">
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">小家名称</label>
+          <input type="text" class="app-input" id="settingProjectName" value="${App.currentProject?.name || App.config.projectName || '我们的家'}" placeholder="给我们的家起个名字">
+        </div>
+        
+        <!-- 当前操作人 -->
+        <div style="margin-bottom:20px">
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">当前操作人</label>
+          <select class="app-input" id="settingCurrentUser">
+            ${users.map(u => `<option value="${u.id}" ${u.id === currentOpId ? 'selected' : ''}>${u.avatar} ${escapeHtml(u.name)}</option>`).join('')}
+          </select>
+          <div style="font-size:0.75rem;color:var(--ink-light);margin-top:4px">切换后，新增的记录将标记为此人</div>
+        </div>
+        
+        <!-- 家庭成员管理 -->
+        <div style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <label style="font-size:0.8rem;color:var(--ink-light);font-weight:600">家庭成员</label>
+            <button class="btn btn-secondary btn-sm" id="btnAddMember" style="font-size:0.8rem;padding:4px 10px">
+              + 添加成员
+            </button>
+          </div>
+          <div id="settingsUsersList" style="display:flex;flex-direction:column;gap:8px">
+            ${generateUserRows()}
+          </div>
+        </div>
+        
+        <!-- 登录账号信息 -->
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(26,26,26,0.06)">
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">登录账号</label>
+          <div class="app-input" style="background:var(--cream-deep);font-size:0.85rem">${App.currentUser?.email || userName}</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" id="btnSaveSettings">保存</button>
+      </div>
+    `;
+    
+    // 添加成员按钮事件
+    document.getElementById('btnAddMember').addEventListener('click', () => {
+      const newId = 'user_' + (Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+      users.push({ id: newId, name: '新成员', avatar: '🧑' });
+      refreshUserRows();
+    });
+    
+    // 刷新用户列表
+    function refreshUserRows() {
+      const container = document.getElementById('settingsUsersList');
+      container.innerHTML = generateUserRows();
+      bindUserRowEvents();
+      
+      // 更新当前操作人下拉框
+      const currentSelect = document.getElementById('settingCurrentUser');
+      const currentVal = currentSelect.value;
+      currentSelect.innerHTML = users.map(u => `<option value="${u.id}" ${u.id === currentVal ? 'selected' : ''}>${u.avatar} ${escapeHtml(u.name)}</option>`).join('');
+    }
+    
+    // 绑定用户行事件
+    function bindUserRowEvents() {
+      // 删除按钮
+      document.querySelectorAll('.settings-user-delete').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = parseInt(e.target.dataset.idx);
+          if (users.length > 1) {
+            users.splice(idx, 1);
+            refreshUserRows();
+          }
+        });
+      });
+    }
+    
+    bindUserRowEvents();
+    overlay.classList.add('show');
+
+    document.getElementById('btnSaveSettings').addEventListener('click', async () => {
+      // 收集用户数据
+      const nameInputs = document.querySelectorAll('.settings-name-input');
+      const avatarSelects = document.querySelectorAll('.settings-avatar-select');
+      
+      const newUsers = [];
+      nameInputs.forEach((input, idx) => {
+        const name = input.value.trim() || '未命名';
+        const avatar = avatarSelects[idx]?.value || '🧑';
+        const id = users[idx]?.id || ('user_' + Date.now().toString(36));
+        newUsers.push({ id, name, avatar });
+      });
+      
+      // 更新配置
+      App.config.users = newUsers;
+      App.users = newUsers;
+      App.config.currentUserId = document.getElementById('settingCurrentUser').value || newUsers[0]?.id;
+      
+      // 项目名称
+      const newName = document.getElementById('settingProjectName').value || '我们的家';
+      App.config.projectName = newName;
+      if (App.currentProject) {
+        await App.update('projects', App.currentProject.id, { name: newName });
+        App.currentProject.name = newName;
+      }
+      
+      updateProjectName();
+      App.setData('config', App.config);
+      closeModal();
+      App.showToast('设置已保存', 'success');
+      
+      // 刷新当前模块以应用新用户名称
+      const activeModule = document.querySelector('.module-content.active');
+      if (activeModule) {
+        const moduleId = activeModule.id.replace('module-', '');
+        if (MODULES[moduleId] && MODULES[moduleId].render) {
+          MODULES[moduleId].render();
+        }
+      }
+    });
+  });
+
   initAuthEvents();
   App.initSupabase();
 });

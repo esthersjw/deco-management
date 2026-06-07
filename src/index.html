@@ -905,6 +905,13 @@ window.App = {
   }
 };
 
+function getCurrentUser() {
+  if (!window.App) return { id: 'user_1', name: '我', avatar: '👩' };
+  const users = App.config?.users || App.users || DEFAULT_CONFIG.users;
+  const currentId = App.config?.currentUserId || 'user_1';
+  return users.find(u => u.id === currentId) || users[0] || { id: 'user_1', name: '我', avatar: '👩' };
+}
+
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('show');
 }

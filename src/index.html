@@ -785,6 +785,8 @@ window.App = {
 
   // 文件上传到 Storage
   async uploadFile(bucket, filePath, file) {
+    if (!this.supabase) return { error: new Error('Supabase 未初始化') };
+    if (!this.currentUser || !this.currentProject) return { error: new Error('请先登录并打开项目') };
     const { data, error } = await this.supabase.storage.from(bucket).upload(filePath, file, {
       cacheControl: '3600',
       upsert: false
@@ -1041,6 +1043,8 @@ document.addEventListener('keydown', (e) => {
 function registerModule(id, module) {
   MODULES[id] = module;
   if (module.init) module.init();
+  if (moduleData[id] && module.setData) module.setData(moduleData[id]);
+  if (currentModule === id && module.render) module.render();
 }
 
 // ==================== INIT ====================
@@ -3744,6 +3748,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (result.error) throw result.error;
       return result.url;
     } catch (e) {
+      console.error('Upload photo failed:', e);
       App.showToast('保存照片失败: ' + e.message, 'error');
       return null;
     }
@@ -3780,6 +3785,8 @@ window.addEventListener('DOMContentLoaded', () => {
       save();
       render();
       App.showToast(`已上传 ${uploaded.length} 张照片`, 'success');
+    } else {
+      App.showToast('没有照片上传成功，请查看权限或文件格式', 'warning');
     }
   }
 
@@ -4620,6 +4627,8 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 })();
 
+</script>
+
 <!-- ====== MATERIALS.JS ====== -->
 <script>
 (function() {
@@ -5327,6 +5336,8 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 })();
+
+</script>
 
 <!-- ====== CONTACTS.JS ====== -->
 <script>

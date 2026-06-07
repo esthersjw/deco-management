@@ -241,7 +241,9 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
 /* ========== PHOTO CARD ========== */
 .photo-card{background:var(--card-bg);border-radius:var(--radius);overflow:hidden;box-shadow:var(--card-shadow);transition:var(--transition);cursor:pointer}
 .photo-card:hover{transform:translateY(-2px);box-shadow:var(--card-shadow-hover)}
-.photo-card-img{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--cream-deep)}
+.photo-card-img{position:relative;width:100%;aspect-ratio:4/3;background:var(--cream-deep);overflow:hidden}
+.photo-card-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.photo-card-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:2rem}
 .photo-card-info{padding:10px 12px}
 .photo-card-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
 
@@ -3664,9 +3666,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
       html += `
         <div class="photo-card" data-photo-id="${ph.id}" onclick="MODULES.progress.viewPhoto('${ph.id}')">
-          <div class="photo-card-img" style="display:flex;align-items:center;justify-content:center;overflow:hidden">
-            <img src="" data-src="${ph.fileName}" alt="${escapeHtml(ph.note || '照片')}" style="width:100%;height:100%;object-fit:cover;display:none" onload="this.style.display='block';this.previousElementSibling.style.display='none'">
-            <div style="color:var(--ink-faint);font-size:2rem">📷</div>
+          <div class="photo-card-img">
+            <img src="" data-src="${ph.fileName}" alt="${escapeHtml(ph.note || '照片')}" style="display:none" onload="this.style.display='block';this.nextElementSibling.style.display='none'">
+            <div class="photo-card-placeholder">📷</div>
           </div>
           <div class="photo-card-info">
             <div class="flex-between" style="margin-bottom:4px">
@@ -3703,9 +3705,9 @@ window.addEventListener('DOMContentLoaded', () => {
         (ph.tags?.location || []).forEach(loc => tagsHtml.push(`<span class="badge badge-gray">${loc}</span>`));
         html += `
           <div class="photo-card" data-photo-id="${ph.id}" onclick="MODULES.progress.viewPhoto('${ph.id}')">
-            <div class="photo-card-img" style="display:flex;align-items:center;justify-content:center;overflow:hidden">
-              <img src="" data-src="${ph.fileName}" alt="${escapeHtml(ph.note || '照片')}" style="width:100%;height:100%;object-fit:cover;display:none" onload="this.style.display='block';this.previousElementSibling.style.display='none'">
-              <div style="color:var(--ink-faint);font-size:2rem">📷</div>
+            <div class="photo-card-img">
+              <img src="" data-src="${ph.fileName}" alt="${escapeHtml(ph.note || '照片')}" style="display:none" onload="this.style.display='block';this.nextElementSibling.style.display='none'">
+              <div class="photo-card-placeholder">📷</div>
             </div>
             <div class="photo-card-info">
               <div class="flex-between"><span class="text-xs text-faint">${user.avatar} ${user.name}</span></div>

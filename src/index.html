@@ -791,7 +791,18 @@ window.App = {
       cacheControl: '3600',
       upsert: false
     });
-    if (error) return { error };
+    if (error) {
+      const detail = error.message || error.error || error.statusCode || JSON.stringify(error);
+      const hints = [
+        ['Bucket not found', `Storage bucket 不存在：${bucket}，请执行 fix-storage-rls.sql`],
+        ['new row violates row-level security policy', `Storage RLS 拒绝上传：${bucket}，请执行 fix-storage-rls.sql`],
+        ['row-level security policy', `Storage RLS 拒绝上传：${bucket}，请执行 fix-storage-rls.sql`],
+      ];
+      const match = hints.find(([needle]) => detail.includes(needle));
+      const message = match ? match[1] : `${bucket} 上传失败：${detail}`;
+      console.error('Storage upload failed:', { bucket, filePath, fileName: file?.name, fileType: file?.type, error });
+      return { error: new Error(message) };
+    }
     const { data: { publicUrl } } = this.supabase.storage.from(bucket).getPublicUrl(data.path);
     return { url: publicUrl, error: null };
   },

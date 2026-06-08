@@ -588,6 +588,7 @@ window.App = {
   supabase: null,
   currentUser: null,
   currentProject: null,
+  projectMembers: [],
   users: DEFAULT_CONFIG.users,
   config: DEFAULT_CONFIG,
   currentModule: 'dashboard',
@@ -644,18 +645,100 @@ window.App = {
 
   // 加载或创建项目
   async loadOrCreateProject() {
-    const { data: projects } = await this.supabase.from('projects').select('*').eq('owner_id', this.currentUser.id);
-    if (projects && projects.length > 0) {
-      this.currentProject = projects[0];
+    const { data: ownedProjects, error: ownedError } = await this.supabase
+      .from('projects')
+      .select('*')
+      .eq('owner_id', this.currentUser.id)
+      .order('created_at', { ascending: true });
+    if (ownedError) throw ownedError;
+
+    if (ownedProjects && ownedProjects.length > 0) {
+      this.currentProject = ownedProjects[0];
     } else {
-      const { data: newProject } = await this.supabase.from('projects').insert({
-        name: '我的装修项目',
-        owner_id: this.currentUser.id
-      }).select().single();
-      this.currentProject = newProject;
+      const { data: memberRows, error: memberError } = await this.supabase
+        .from('project_members')
+        .select('role, projects(*)')
+        .eq('user_id', this.currentUser.id)
+        .order('created_at', { ascending: true });
+      if (memberError) throw memberError;
+      const sharedProject = (memberRows || []).map(row => row.projects).find(Boolean);
+
+      if (sharedProject) {
+        this.currentProject = sharedProject;
+      } else {
+        const { data: newProject, error: createError } = await this.supabase.from('projects').insert({
+          name: '我的装修项目',
+          owner_id: this.currentUser.id
+        }).select().single();
+        if (createError) throw createError;
+        this.currentProject = newProject;
+      }
     }
+    await this.loadProjectMembers();
     updateProjectName();
     await this.loadAllData();
+  },
+
+  async loadProjectMembers() {
+    if (!this.currentProject) {
+      this.projectMembers = [];
+      return [];
+    }
+    const { data: members, error } = await this.supabase
+      .from('project_members')
+      .select('id, role, created_at, user_id')
+      .eq('project_id', this.currentProject.id)
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.warn('Load project members failed', error);
+      this.projectMembers = [];
+      return [];
+    }
+    const userIds = [...new Set((members || []).map(member => member.user_id).filter(Boolean))];
+    let profilesById = {};
+    if (userIds.length) {
+      const { data: profiles, error: profilesError } = await this.supabase
+        .from('profiles')
+        .select('id, email, display_name')
+        .in('id', userIds);
+      if (profilesError) console.warn('Load member profiles failed', profilesError);
+      profilesById = Object.fromEntries((profiles || []).map(profile => [profile.id, profile]));
+    }
+    this.projectMembers = (members || []).map(member => ({
+      ...member,
+      profile: profilesById[member.user_id] || null
+    }));
+    return this.projectMembers;
+  },
+
+  async inviteProjectMember(email, role = 'editor') {
+    if (!this.currentProject) throw new Error('请先打开项目');
+    if (this.currentProject.owner_id !== this.currentUser.id) throw new Error('只有项目创建者可以邀请成员');
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    if (!normalizedEmail) throw new Error('请输入对方注册邮箱');
+    if (normalizedEmail === (this.currentUser.email || '').toLowerCase()) throw new Error('不能邀请自己');
+
+    const { data: profile, error: profileError } = await this.supabase
+      .from('profiles')
+      .select('id, email, display_name')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+    if (profileError) throw profileError;
+    if (!profile) throw new Error('没有找到这个邮箱对应的注册账号。让对方先注册并确认邮箱后再邀请。');
+
+    const { data, error } = await this.supabase
+      .from('project_members')
+      .upsert({
+        project_id: this.currentProject.id,
+        user_id: profile.id,
+        role,
+        invited_by: this.currentUser.id
+      }, { onConflict: 'project_id,user_id' })
+      .select('id, role, created_at, user_id')
+      .single();
+    if (error) throw error;
+    await this.loadProjectMembers();
+    return data;
   },
 
   // 从 Supabase 加载所有模块数据
@@ -1071,10 +1154,12 @@ function registerModule(id, module) {
 
 window.addEventListener('DOMContentLoaded', () => {
   // 设置按钮事件绑定
-  document.getElementById('settingsBtn').addEventListener('click', () => {
+  document.getElementById('settingsBtn').addEventListener('click', async () => {
     const overlay = document.getElementById('modalOverlay');
     const content = document.getElementById('modalContent');
     const userName = App.currentUser?.profile?.name || App.currentUser?.email?.split('@')[0] || '用户';
+    await App.loadProjectMembers();
+    const isProjectOwner = App.currentProject?.owner_id === App.currentUser?.id;
     
     // 生成家庭成员列表HTML
     const users = App.config.users || DEFAULT_CONFIG.users;
@@ -1100,6 +1185,20 @@ window.addEventListener('DOMContentLoaded', () => {
       `).join('');
     }
     
+    function generateAccountMemberRows() {
+      const ownerEmail = App.currentUser?.email || '当前账号';
+      const rows = [
+        `<div class="settings-user-row"><div class="settings-user-name"><strong>${escapeHtml(ownerEmail)}</strong><div style="font-size:0.75rem;color:var(--ink-light)">创建者 / owner</div></div></div>`,
+        ...(App.projectMembers || []).map(member => {
+          const profile = member.profile || {};
+          const email = profile.email || profile.display_name || member.user_id;
+          const roleLabel = member.role === 'viewer' ? '只读成员' : '可编辑成员';
+          return `<div class="settings-user-row"><div class="settings-user-name"><strong>${escapeHtml(email)}</strong><div style="font-size:0.75rem;color:var(--ink-light)">${roleLabel}</div></div></div>`;
+        })
+      ];
+      return rows.join('');
+    }
+
     content.innerHTML = `
       <div class="modal-header">
         <div class="modal-title">🔧 设置</div>
@@ -1134,9 +1233,27 @@ window.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
         
+        <!-- 项目共享账号 -->
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(26,26,26,0.06)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px">
+            <label style="font-size:0.8rem;color:var(--ink-light);font-weight:600">项目共享账号</label>
+            ${isProjectOwner ? '<span style="font-size:0.72rem;color:var(--ink-light)">对方必须先注册</span>' : '<span style="font-size:0.72rem;color:var(--ink-light)">只有创建者可邀请</span>'}
+          </div>
+          <div id="accountMembersList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+            ${generateAccountMemberRows()}
+          </div>
+          ${isProjectOwner ? `
+            <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
+              <input type="email" class="app-input" id="inviteMemberEmail" placeholder="输入对方注册邮箱">
+              <button class="btn btn-primary btn-sm" id="btnInviteAccountMember">邀请</button>
+            </div>
+            <div style="font-size:0.75rem;color:var(--ink-light);margin-top:6px">邀请成功后，对方重新登录就会看到这个项目。</div>
+          ` : ''}
+        </div>
+
         <!-- 登录账号信息 -->
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(26,26,26,0.06)">
-          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">登录账号</label>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">当前登录账号</label>
           <div class="app-input" style="background:var(--cream-deep);font-size:0.85rem">${App.currentUser?.email || userName}</div>
         </div>
       </div>
@@ -1180,6 +1297,26 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     
     bindUserRowEvents();
+    const inviteBtn = document.getElementById('btnInviteAccountMember');
+    if (inviteBtn) {
+      inviteBtn.addEventListener('click', async () => {
+        const input = document.getElementById('inviteMemberEmail');
+        const email = input.value.trim();
+        inviteBtn.disabled = true;
+        inviteBtn.textContent = '邀请中...';
+        try {
+          await App.inviteProjectMember(email, 'editor');
+          document.getElementById('accountMembersList').innerHTML = generateAccountMemberRows();
+          input.value = '';
+          App.showToast('已邀请成员加入项目', 'success');
+        } catch (e) {
+          App.showToast(e.message || '邀请失败', 'error');
+        } finally {
+          inviteBtn.disabled = false;
+          inviteBtn.textContent = '邀请';
+        }
+      });
+    }
     overlay.classList.add('show');
 
     document.getElementById('btnSaveSettings').addEventListener('click', async () => {
@@ -3334,701 +3471,152 @@ window.addEventListener('DOMContentLoaded', () => {
 
 <!-- ====== PROGRESS.JS ====== -->
 <script>
-// Progress Module
+// Progress Module — stage command board
 (function() {
   'use strict';
 
-  // ── Constants ──
-  const PHASE_NAMES = ['拆除', '水电', '泥瓦', '木工', '油漆', '安装'];
+  const PHASE_DEFS = [
+    { id: 'phase_design', name: '设计规划', type: 'planning', tasks: ['整理居住需求和预算红线', '确认平面方案', '确认施工图/柜体图', '确认主材预选清单'], checks: ['平面方案确认', '效果图确认', '施工图确认', '主材预算上限确认'] },
+    { id: 'phase_demo', name: '拆除', type: 'construction', tasks: ['确认保护范围', '拆除前拍照留底', '确认垃圾清运方式'], checks: ['保护到位', '拆除边界正确', '现场清运完成'] },
+    { id: 'phase_water', name: '水电', type: 'construction', tasks: ['确认开关插座点位', '确认厨卫电器尺寸', '水电放样拍照', '保存隐蔽工程照片'], checks: ['水压测试', '电路回路确认', '强弱电间距确认', '隐蔽工程验收'] },
+    { id: 'phase_tile', name: '泥瓦', type: 'construction', tasks: ['确认瓷砖到货', '确认铺贴方式', '安排闭水测试'], checks: ['防水验收', '闭水测试', '瓷砖空鼓检查', '坡度检查'] },
+    { id: 'phase_wood', name: '木工', type: 'construction', tasks: ['确认吊顶尺寸', '确认柜体复尺', '确认门洞尺寸'], checks: ['基层检查', '收口检查', '柜体尺寸复核'] },
+    { id: 'phase_paint', name: '油漆', type: 'construction', tasks: ['确认墙面颜色', '确认腻子/底漆节点', '保护已安装材料'], checks: ['墙面平整度', '阴阳角检查', '色差检查'] },
+    { id: 'phase_install', name: '安装', type: 'construction', tasks: ['安排主材安装', '确认五金灯具', '整理缺件清单'], checks: ['灯具通电', '洁具试水', '柜门调平', '全屋收口'] },
+    { id: 'phase_soft', name: '软装入住', type: 'movein', tasks: ['家具进场', '开荒保洁', '甲醛检测', '入住物品清单'], checks: ['保洁验收', '家具尺寸确认', '空气检测确认'] }
+  ];
+  const PHASE_NAMES = PHASE_DEFS.map(p => p.name);
   const STATUS_LIST = ['未开始', '进行中', '已完成', '滞后'];
   const LOCATION_TAGS = ['客厅', '主卧', '次卧', '厨房', '卫生间', '阳台', '书房', '玄关'];
   const NATURE_TAGS = ['正常进度', '发现问题', '验收通过', '待整改', '灵感参考'];
+  const MATERIAL_STATUSES = ['待选购', '已下单', '已到货', '已安装', '已验收'];
 
-  // ── State ──
-  let data = { version: '1.0', updatedAt: '', phases: [], currentPhaseId: null, photos: [] };
-  let currentTab = 'phases'; // 'phases' | 'photos'
+  let data = { version: '1.1', updatedAt: '', phases: [], currentPhaseId: 'phase_design', photos: [] };
+  let currentTab = 'phases';
   let photoFilters = { phase: 'all', location: 'all', nature: 'all', dateFrom: '', dateTo: '', user: 'all' };
-  let photoView = 'grid'; // 'grid' | 'timeline'
-  let photoObjectURLs = []; // track for cleanup
+  let photoView = 'grid';
+  let photoObjectURLs = [];
 
-  // ── Helpers ──
-  function getToday() {
-    return new Date().toISOString().slice(0, 10);
+  function getToday() { return new Date().toISOString().slice(0, 10); }
+  function daysBetween(a, b) { if (!a || !b) return 0; return Math.round((new Date(b) - new Date(a)) / 86400000); }
+  function money(n) { return '¥' + (Number(n || 0)).toLocaleString('zh-CN'); }
+  function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text == null ? '' : String(text); return div.innerHTML; }
+  function generateId(prefix) { return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6); }
+  function getUser(uId) { return (App.users || []).find(u => u.id === uId) || { name: '未知', avatar: '👤' }; }
+  function container() { return document.getElementById('progress-content'); }
+  function getPhaseDef(idOrName) { return PHASE_DEFS.find(p => p.id === idOrName || p.name === idOrName) || PHASE_DEFS[0]; }
+  function checklistFrom(labels, prefix) { return labels.map((title, idx) => ({ id: `${prefix}_${idx + 1}`, title, done: false })); }
+  function normalizePhase(raw, idx) {
+    const def = getPhaseDef(raw.id || raw.name);
+    return {
+      id: def.id,
+      name: def.name,
+      type: def.type,
+      order: idx + 1,
+      plannedStart: raw.plannedStart || '', plannedEnd: raw.plannedEnd || '', actualStart: raw.actualStart || '', actualEnd: raw.actualEnd || '',
+      status: raw.status || '未开始', progress: Number(raw.progress) || 0, note: raw.note || '',
+      tasks: Array.isArray(raw.tasks) && raw.tasks.length ? raw.tasks : checklistFrom(def.tasks, def.id + '_task'),
+      checks: Array.isArray(raw.checks) && raw.checks.length ? raw.checks : checklistFrom(def.checks, def.id + '_check'),
+      payments: Array.isArray(raw.payments) ? raw.payments : []
+    };
   }
-
-  function formatDateRange(start, end, fallback) {
-    if (!start && !end) return fallback || '—';
-    const s = start ? start.slice(5).replace('-', '/') : '?';
-    const e = end ? end.slice(5).replace('-', '/') : '进行中';
-    return s + ' - ' + e;
-  }
-
-  function daysBetween(a, b) {
-    if (!a || !b) return 0;
-    const da = new Date(a), db = new Date(b);
-    return Math.round((db - da) / 86400000);
-  }
-
-  function isLag(phase) {
-    if (!phase.plannedEnd) return false;
-    const today = getToday();
-    if (phase.actualEnd && phase.actualEnd > phase.plannedEnd) return true;
-    if (!phase.actualEnd && phase.status !== '已完成' && today > phase.plannedEnd) return true;
-    return false;
-  }
-
-  function lagDays(phase) {
-    if (!phase.plannedEnd) return 0;
-    const end = phase.actualEnd || getToday();
-    if (end > phase.plannedEnd) return daysBetween(phase.plannedEnd, end);
-    return 0;
-  }
-
-  function save() {
-    data.updatedAt = new Date().toISOString();
-    App.setData('progress', JSON.parse(JSON.stringify(data)));
-  }
-
-  function getUser(uId) {
-    return (App.users || []).find(u => u.id === uId) || { name: '未知', avatar: '👤' };
-  }
-
-  function generateId(prefix) {
-    return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
-  }
-
   function ensureDefaultPhases() {
-    if (!data.phases || data.phases.length === 0) {
-      data.phases = PHASE_NAMES.map((name, i) => ({
-        id: 'phase_' + (i + 1),
-        name,
-        order: i + 1,
-        plannedStart: '',
-        plannedEnd: '',
-        actualStart: '',
-        actualEnd: '',
-        status: '未开始',
-        progress: 0,
-        note: ''
-      }));
+    const existing = data.phases || [];
+    data.phases = PHASE_DEFS.map((def, idx) => {
+      const old = existing.find(p => p.id === def.id || p.name === def.name || (p.order === idx + 1 && p.name !== '设计规划')) || {};
+      return normalizePhase({ ...old, id: def.id, name: def.name }, idx);
+    });
+    if (!data.currentPhaseId || !data.phases.some(p => p.id === data.currentPhaseId)) {
+      const active = data.phases.find(p => p.status === '进行中') || data.phases[0];
+      data.currentPhaseId = active.id;
     }
+    data.version = '1.1';
+    data.photos = data.photos || [];
   }
-
-  // ── DOM Refs ──
-  function container() {
-    return document.getElementById('progress-content');
+  function save() { data.updatedAt = new Date().toISOString(); App.setData('progress', JSON.parse(JSON.stringify(data))); }
+  function isLag(phase) { if (!phase.plannedEnd) return false; const today = getToday(); return (!!phase.actualEnd && phase.actualEnd > phase.plannedEnd) || (!phase.actualEnd && phase.status !== '已完成' && today > phase.plannedEnd); }
+  function completion(list) { const arr = list || []; return { done: arr.filter(x => x.done).length, total: arr.length }; }
+  function phasePhotos(phase) { return (data.photos || []).filter(p => p.tags?.phase === phase.name); }
+  function materialMatchesPhase(m, phase) { return m.phaseId === phase.id || m.phase === phase.name || m.stage === phase.name || (m.note || '').includes(phase.name); }
+  function budgetMatchesPhase(item, phase) { return item.phaseId === phase.id || item.phase === phase.name || (item.name || '').includes(phase.name) || (item.note || '').includes(phase.name); }
+  function getPhaseSignals(phase) {
+    const mat = App.getData('materials') || { items: [] };
+    const budget = App.getData('budget') || { items: [], payments: [] };
+    const materials = (mat.items || []).filter(m => materialMatchesPhase(m, phase));
+    const budgetItems = (budget.items || []).filter(i => budgetMatchesPhase(i, phase));
+    const payments = (budget.payments || []).filter(p => {
+      const item = (budget.items || []).find(i => i.id === p.itemId);
+      return p.phaseId === phase.id || p.phase === phase.name || (item && budgetMatchesPhase(item, phase));
+    });
+    const planned = budgetItems.reduce((s, i) => s + (Number(i.budget) || 0), 0);
+    const actual = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0) || budgetItems.reduce((s, i) => s + (Number(i.actual) || 0), 0);
+    return { materials, budgetItems, payments, planned, actual, photos: phasePhotos(phase) };
   }
-
-  // ── Render: Tabs ──
   function renderTabs() {
-    return `
-      <div class="tab-bar">
-        <button class="tab ${currentTab === 'phases' ? 'active' : ''}" data-tab="phases">📋 阶段时间线</button>
-        <button class="tab ${currentTab === 'photos' ? 'active' : ''}" data-tab="photos">📷 照片墙 (${data.photos?.length || 0})</button>
-      </div>
-    `;
+    return `<div class="tab-bar"><button class="tab ${currentTab === 'phases' ? 'active' : ''}" data-tab="phases">🧭 阶段节点中心</button><button class="tab ${currentTab === 'photos' ? 'active' : ''}" data-tab="photos">📷 照片墙 (${data.photos?.length || 0})</button></div>`;
   }
-
-  // ── Render: Phases ──
-  function renderPhases() {
-    ensureDefaultPhases();
-    const phases = data.phases;
-    const currentId = data.currentPhaseId;
-
-    let html = '<div class="timeline" style="margin-bottom:24px;flex-wrap:wrap;">';
-    phases.forEach((phase, idx) => {
-      const isCurrent = phase.id === currentId;
-      const lag = isLag(phase);
-      const completed = phase.status === '已完成';
-      const activeCls = isCurrent ? 'active' : (completed ? 'completed' : (lag ? 'lag' : ''));
-      const lineCls = idx < phases.length - 1 ? (completed ? 'completed' : (isCurrent ? 'active' : '')) : '';
-
-      html += `
-        <div class="timeline-item">
-          <div class="timeline-dot ${activeCls}"></div>
-          ${idx < phases.length - 1 ? `<div class="timeline-line ${lineCls}"></div>` : ''}
-        </div>
-      `;
-    });
-    html += '</div>';
-
-    html += '<div class="grid-3" id="phaseGrid">';
-    phases.forEach(phase => {
-      const isCurrent = phase.id === currentId;
-      const lag = isLag(phase);
-      const cardCls = ['phase-card'];
-      if (isCurrent) cardCls.push('active');
-      else if (phase.status === '已完成') cardCls.push('completed');
-      else if (lag) cardCls.push('lag');
-
-      const statusBadge = phase.status === '已完成' ? '<span class="badge badge-green">✅ 已完成</span>' :
-        phase.status === '进行中' ? '<span class="badge badge-blue">🔄 进行中</span>' :
-        phase.status === '滞后' ? '<span class="badge badge-red">⚠️ 滞后</span>' :
-        '<span class="badge badge-gray">⏳ 未开始</span>';
-
-      const currentBadge = isCurrent ? '<span class="badge badge-blue" style="margin-left:6px">当前</span>' : '';
-      const lagText = lag ? `<div class="phase-status" style="color:var(--red);font-weight:600">滞后 ${lagDays(phase)} 天</div>` : '';
-      const actualText = phase.actualStart
-        ? (phase.actualEnd ? `实际: ${daysBetween(phase.actualStart, phase.actualEnd)} 天` : `已进行 ${daysBetween(phase.actualStart, getToday())} 天`)
-        : '';
-
-      const progressColor = phase.progress >= 100 ? 'success' : (lag ? 'danger' : (phase.progress > 0 ? '' : ''));
-
-      // Get materials for this phase
-      const matData = App.getData('materials') || { items: [] };
-      const phaseMats = (matData.items || []).filter(m => m.phaseId === phase.id);
-      const matSummary = phaseMats.length > 0 ? `
-        <div style="margin-top:8px;padding:8px;background:var(--cream-deep);border-radius:6px;font-size:0.75rem">
-          <div style="font-weight:600;color:var(--ink-light);margin-bottom:4px">🧱 材料 (${phaseMats.length}项)</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            ${['待选购','已下单','已到货','已安装','已验收'].map(s => {
-              const count = phaseMats.filter(m => m.status === s).length;
-              return count > 0 ? `<span style="padding:2px 6px;border-radius:4px;background:${STATUS_BG[s] || 'var(--cream-deep)'};color:${STATUS_COLORS[s] || 'var(--ink-faint)'};font-weight:600">${s} ${count}</span>` : '';
-            }).join('')}
-          </div>
-        </div>
-      ` : '';
-
-      html += `
-        <div class="${cardCls.join(' ')}" data-phase-id="${phase.id}">
-          <div class="flex-between" style="margin-bottom:10px">
-            <div class="phase-name">${phase.order}. ${phase.name} ${currentBadge}</div>
-            <div>${statusBadge}</div>
-          </div>
-          <div class="phase-dates" style="margin-bottom:6px">计划: ${formatDateRange(phase.plannedStart, phase.plannedEnd, '未设定')}</div>
-          <div class="phase-dates" style="margin-bottom:8px">实际: ${formatDateRange(phase.actualStart, phase.actualEnd, '未开始')}</div>
-          ${lagText}
-          ${actualText ? `<div class="phase-dates">${actualText}</div>` : ''}
-          <div class="progress-bar" style="margin:10px 0">
-            <div class="progress-bar-fill ${progressColor}" style="width:${phase.progress}%"></div>
-          </div>
-          <div class="text-xs text-faint" style="margin-bottom:10px">进度 ${phase.progress}%</div>
-          ${phase.note ? `<div class="text-xs" style="color:var(--ink-light);margin-bottom:10px;background:var(--cream-deep);padding:6px 8px;border-radius:6px">${escapeHtml(phase.note)}</div>` : ''}
-          ${matSummary}
-          <div class="flex" style="gap:6px">
-            <button class="btn btn-sm btn-secondary" onclick="MODULES.progress.editPhase('${phase.id}')">✏️ 编辑</button>
-            ${!isCurrent && phase.status === '进行中' ? `<button class="btn btn-sm btn-primary" onclick="MODULES.progress.setCurrentPhase('${phase.id}')">设为当前</button>` : ''}
-          </div>
-        </div>
-      `;
-    });
-    html += '</div>';
-    return html;
+  function renderMiniChecklist(phase, key, label) {
+    const list = phase[key] || [];
+    const c = completion(list);
+    return `<div style="background:var(--cream-deep);border-radius:10px;padding:10px"><div class="flex-between" style="margin-bottom:8px"><strong style="font-size:.82rem">${label}</strong><span class="text-xs text-faint">${c.done}/${c.total}</span></div>${list.slice(0,4).map(item => `<label style="display:flex;gap:7px;align-items:flex-start;font-size:.78rem;margin:6px 0;line-height:1.35"><input type="checkbox" ${item.done ? 'checked' : ''} onchange="MODULES.progress.toggleNode('${phase.id}','${key}','${item.id}')"><span style="${item.done ? 'text-decoration:line-through;color:var(--ink-faint)' : ''}">${escapeHtml(item.title)}</span></label>`).join('')}${list.length > 4 ? `<div class="text-xs text-faint">还有 ${list.length - 4} 项，点编辑查看</div>` : ''}</div>`;
   }
-
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+  function renderCommandPanel() {
+    const phase = data.phases.find(p => p.id === data.currentPhaseId) || data.phases[0];
+    if (!phase) return '';
+    const signals = getPhaseSignals(phase);
+    const task = completion(phase.tasks), check = completion(phase.checks);
+    const checkTitle = phase.type === 'planning' ? '确认项' : '验收项';
+    const risk = [];
+    if (task.done < task.total) risk.push(`${task.total - task.done} 个待办未完成`);
+    if (check.done < check.total) risk.push(`${check.total - check.done} 个${checkTitle}未完成`);
+    if (signals.materials.filter(m => m.status === '待选购').length) risk.push('还有主材待选购');
+    if (signals.planned && signals.actual > signals.planned) risk.push('本阶段预算已超支');
+    return `<div class="app-card" style="padding:18px;margin-bottom:18px;border:1px solid rgba(43,127,216,.18);background:linear-gradient(135deg,rgba(43,127,216,.08),rgba(255,255,255,.85))"><div class="flex-between" style="align-items:flex-start;gap:14px"><div><div class="text-xs text-faint" style="margin-bottom:4px">当前作战阶段</div><h2 style="margin:0;font-size:1.35rem">${phase.order}. ${phase.name}</h2><div class="text-sm text-faint" style="margin-top:6px">${phase.type === 'planning' ? '先把方案、图纸、预算红线钉死，别把坑留给施工。' : '现场推进、验收、付款和材料都在这里对齐。'}</div></div><button class="btn btn-sm btn-primary" onclick="MODULES.progress.editPhase('${phase.id}')">编辑当前阶段</button></div><div class="grid-4" style="margin-top:16px"><div class="stat-card"><div class="stat-label">待办</div><div class="stat-value">${task.done}/${task.total}</div></div><div class="stat-card"><div class="stat-label">${checkTitle}</div><div class="stat-value">${check.done}/${check.total}</div></div><div class="stat-card"><div class="stat-label">阶段预算</div><div class="stat-value" style="font-size:1.1rem">${signals.planned ? money(signals.actual) : '未绑定'}</div><div class="stat-sub">${signals.planned ? '预算 ' + money(signals.planned) : '可在预算项备注阶段名'}</div></div><div class="stat-card"><div class="stat-label">材料/照片</div><div class="stat-value">${signals.materials.length}/${signals.photos.length}</div><div class="stat-sub">材料 / 照片</div></div></div>${risk.length ? `<div class="alert-banner alert-banner-warning" style="margin-top:14px">⚠️ ${risk.join(' · ')}</div>` : `<div class="alert-banner alert-banner-success" style="margin-top:14px">✅ 当前阶段没有明显阻塞</div>`}</div>`;
   }
-
-  // ── Phase Edit Modal ──
+  function renderPhaseCard(phase) {
+    const isCurrent = phase.id === data.currentPhaseId;
+    const lag = isLag(phase);
+    const cls = ['phase-card']; if (isCurrent) cls.push('active'); else if (phase.status === '已完成') cls.push('completed'); else if (lag) cls.push('lag');
+    const statusBadge = phase.status === '已完成' ? '<span class="badge badge-green">✅ 已完成</span>' : phase.status === '进行中' ? '<span class="badge badge-blue">🔄 进行中</span>' : lag || phase.status === '滞后' ? '<span class="badge badge-red">⚠️ 滞后</span>' : '<span class="badge badge-gray">⏳ 未开始</span>';
+    const signals = getPhaseSignals(phase);
+    const task = completion(phase.tasks), check = completion(phase.checks);
+    const checkTitle = phase.type === 'planning' ? '确认' : '验收';
+    const matSummary = MATERIAL_STATUSES.map(s => { const n = signals.materials.filter(m => m.status === s).length; return n ? `<span class="badge badge-gray">${s} ${n}</span>` : ''; }).join('');
+    return `<div class="${cls.join(' ')}" data-phase-id="${phase.id}"><div class="flex-between" style="margin-bottom:10px"><div class="phase-name">${phase.order}. ${phase.name} ${isCurrent ? '<span class="badge badge-blue" style="margin-left:6px">当前</span>' : ''}</div>${statusBadge}</div><div class="phase-dates">计划: ${phase.plannedStart || phase.plannedEnd ? `${phase.plannedStart || '?'} - ${phase.plannedEnd || '进行中'}` : '未设定'}</div><div class="progress-bar" style="margin:10px 0"><div class="progress-bar-fill ${phase.progress >= 100 ? 'success' : lag ? 'danger' : ''}" style="width:${phase.progress}%"></div></div><div class="grid-2" style="gap:10px;margin:10px 0">${renderMiniChecklist(phase, 'tasks', '待办')}${renderMiniChecklist(phase, 'checks', checkTitle + '项')}</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0"><div class="text-xs" style="background:var(--cream-deep);padding:8px;border-radius:8px"><strong>预算</strong><br>${signals.planned ? `${money(signals.actual)} / ${money(signals.planned)}` : '未绑定'}</div><div class="text-xs" style="background:var(--cream-deep);padding:8px;border-radius:8px"><strong>材料</strong><br>${signals.materials.length} 项</div><div class="text-xs" style="background:var(--cream-deep);padding:8px;border-radius:8px"><strong>照片</strong><br>${signals.photos.length} 张</div></div>${matSummary ? `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">${matSummary}</div>` : ''}${phase.note ? `<div class="text-xs" style="color:var(--ink-light);background:var(--cream-deep);padding:7px;border-radius:8px;margin-bottom:10px">${escapeHtml(phase.note)}</div>` : ''}<div class="flex" style="gap:6px;flex-wrap:wrap"><button class="btn btn-sm btn-secondary" onclick="MODULES.progress.editPhase('${phase.id}')">✏️ 编辑</button>${!isCurrent ? `<button class="btn btn-sm btn-primary" onclick="MODULES.progress.setCurrentPhase('${phase.id}')">设为当前</button>` : ''}</div></div>`;
+  }
+  function renderPhases() { ensureDefaultPhases(); return renderCommandPanel() + `<div class="timeline" style="margin-bottom:20px;flex-wrap:wrap">${data.phases.map((p, i) => `<div class="timeline-item"><div class="timeline-dot ${p.id === data.currentPhaseId ? 'active' : p.status === '已完成' ? 'completed' : isLag(p) ? 'lag' : ''}"></div>${i < data.phases.length - 1 ? `<div class="timeline-line ${p.status === '已完成' ? 'completed' : ''}"></div>` : ''}</div>`).join('')}</div><div class="grid-3" id="phaseGrid">${data.phases.map(renderPhaseCard).join('')}</div>`; }
   function editPhase(phaseId) {
-    const phase = data.phases.find(p => p.id === phaseId);
-    if (!phase) return;
-    const overlay = document.getElementById('modalOverlay');
-    const content = document.getElementById('modalContent');
-    content.innerHTML = `
-      <div class="modal-header">
-        <div class="modal-title">✏️ 编辑阶段 — ${phase.name}</div>
-        <button class="modal-close" onclick="closeModal()">×</button>
-      </div>
-      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
-        <div>
-          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">状态</label>
-          <select class="app-input app-select" id="editPhaseStatus">
-            ${STATUS_LIST.map(s => `<option value="${s}" ${phase.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-          </select>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">计划开始</label>
-            <input type="date" class="app-input" id="editPlannedStart" value="${phase.plannedStart}">
-          </div>
-          <div>
-            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">计划结束</label>
-            <input type="date" class="app-input" id="editPlannedEnd" value="${phase.plannedEnd}">
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">实际开始</label>
-            <input type="date" class="app-input" id="editActualStart" value="${phase.actualStart}">
-          </div>
-          <div>
-            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">实际结束</label>
-            <input type="date" class="app-input" id="editActualEnd" value="${phase.actualEnd || ''}">
-          </div>
-        </div>
-        <div>
-          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">进度 (%)</label>
-          <input type="range" min="0" max="100" value="${phase.progress}" style="width:100%" id="editProgressRange" oninput="document.getElementById('editProgressVal').textContent=this.value+'%'">
-          <div class="text-xs" id="editProgressVal" style="margin-top:4px">${phase.progress}%</div>
-        </div>
-        <div>
-          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">备注</label>
-          <textarea class="app-input app-textarea" id="editPhaseNote" rows="3">${escapeHtml(phase.note)}</textarea>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal()">取消</button>
-        <button class="btn btn-primary" id="btnSavePhase">保存</button>
-      </div>
-    `;
+    const phase = data.phases.find(p => p.id === phaseId); if (!phase) return;
+    const checkLabel = phase.type === 'planning' ? '确认项' : '验收项';
+    const overlay = document.getElementById('modalOverlay'); const content = document.getElementById('modalContent');
+    content.innerHTML = `<div class="modal-header"><div class="modal-title">✏️ 编辑阶段 — ${phase.name}</div><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body" style="display:flex;flex-direction:column;gap:14px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">状态</label><select class="app-input app-select" id="editPhaseStatus">${STATUS_LIST.map(s => `<option value="${s}" ${phase.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">进度 (%)</label><input type="range" min="0" max="100" value="${phase.progress}" style="width:100%" id="editProgressRange" oninput="document.getElementById('editProgressVal').textContent=this.value+'%'"><div class="text-xs" id="editProgressVal">${phase.progress}%</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">计划开始</label><input type="date" class="app-input" id="editPlannedStart" value="${phase.plannedStart}"></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">计划结束</label><input type="date" class="app-input" id="editPlannedEnd" value="${phase.plannedEnd}"></div></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">待办（一行一项，前缀 [x] 表示完成）</label><textarea class="app-input app-textarea" id="editTasks" rows="5">${phase.tasks.map(t => `${t.done ? '[x] ' : ''}${t.title}`).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">${checkLabel}（一行一项，前缀 [x] 表示完成）</label><textarea class="app-input app-textarea" id="editChecks" rows="5">${phase.checks.map(t => `${t.done ? '[x] ' : ''}${t.title}`).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">备注</label><textarea class="app-input app-textarea" id="editPhaseNote" rows="3">${escapeHtml(phase.note)}</textarea></div></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">取消</button><button class="btn btn-primary" id="btnSavePhase">保存</button></div>`;
     overlay.classList.add('show');
-
     document.getElementById('btnSavePhase').addEventListener('click', () => {
-      phase.status = document.getElementById('editPhaseStatus').value;
-      phase.plannedStart = document.getElementById('editPlannedStart').value;
-      phase.plannedEnd = document.getElementById('editPlannedEnd').value;
-      phase.actualStart = document.getElementById('editActualStart').value;
-      phase.actualEnd = document.getElementById('editActualEnd').value || null;
-      phase.progress = parseInt(document.getElementById('editProgressRange').value, 10);
-      phase.note = document.getElementById('editPhaseNote').value;
-
-      // Auto status logic
-      if (phase.progress >= 100 && phase.status !== '已完成') {
-        phase.status = '已完成';
-        if (!phase.actualEnd) phase.actualEnd = getToday();
-      }
-      if (isLag(phase) && phase.status !== '已完成') phase.status = '滞后';
-
-      // Auto current phase
-      if (phase.status === '进行中' && !data.currentPhaseId) data.currentPhaseId = phase.id;
-
-      save();
-      closeModal();
-      render();
-      App.showToast('阶段信息已更新', 'success');
+      phase.status = document.getElementById('editPhaseStatus').value; phase.progress = parseInt(document.getElementById('editProgressRange').value, 10); phase.plannedStart = document.getElementById('editPlannedStart').value; phase.plannedEnd = document.getElementById('editPlannedEnd').value; phase.note = document.getElementById('editPhaseNote').value;
+      phase.tasks = parseChecklist(document.getElementById('editTasks').value, phase.id + '_task'); phase.checks = parseChecklist(document.getElementById('editChecks').value, phase.id + '_check');
+      if (phase.progress >= 100 && phase.status !== '已完成') phase.status = '已完成'; if (phase.status === '进行中') data.currentPhaseId = phase.id;
+      save(); closeModal(); render(); App.showToast('阶段节点已更新', 'success');
     });
   }
+  function parseChecklist(text, prefix) { return String(text || '').split('\n').map(x => x.trim()).filter(Boolean).map((line, idx) => { const done = /^\[x\]\s*/i.test(line); return { id: `${prefix}_${idx + 1}`, title: line.replace(/^\[[ x]\]\s*/i, ''), done }; }); }
+  function toggleNode(phaseId, key, itemId) { const phase = data.phases.find(p => p.id === phaseId); const item = phase?.[key]?.find(x => x.id === itemId); if (!item) return; item.done = !item.done; save(); render(); }
+  function setCurrentPhase(phaseId) { data.currentPhaseId = phaseId; const p = data.phases.find(x => x.id === phaseId); if (p && p.status === '未开始') p.status = '进行中'; save(); render(); App.showToast('已更新当前阶段', 'success'); }
 
-  function setCurrentPhase(phaseId) {
-    data.currentPhaseId = phaseId;
-    save();
-    render();
-    App.showToast('已更新当前阶段', 'success');
-  }
-
-  // ── Render: Photos ──
-  function renderPhotoFilters() {
-    return `
-      <div class="filter-bar">
-        <select class="app-input app-select" id="filterPhase" onchange="MODULES.progress.setFilter('phase', this.value)">
-          <option value="all">全部阶段</option>
-          ${PHASE_NAMES.map(p => `<option value="${p}" ${photoFilters.phase === p ? 'selected' : ''}>${p}</option>`).join('')}
-        </select>
-        <select class="app-input app-select" id="filterLocation" onchange="MODULES.progress.setFilter('location', this.value)">
-          <option value="all">全部位置</option>
-          ${LOCATION_TAGS.map(l => `<option value="${l}" ${photoFilters.location === l ? 'selected' : ''}>${l}</option>`).join('')}
-        </select>
-        <select class="app-input app-select" id="filterNature" onchange="MODULES.progress.setFilter('nature', this.value)">
-          <option value="all">全部性质</option>
-          ${NATURE_TAGS.map(n => `<option value="${n}" ${photoFilters.nature === n ? 'selected' : ''}>${n}</option>`).join('')}
-        </select>
-        <input type="date" class="app-input" id="filterDateFrom" value="${photoFilters.dateFrom}" onchange="MODULES.progress.setFilter('dateFrom', this.value)" title="开始日期">
-        <input type="date" class="app-input" id="filterDateTo" value="${photoFilters.dateTo}" onchange="MODULES.progress.setFilter('dateTo', this.value)" title="结束日期">
-        <select class="app-input app-select" id="filterUser" onchange="MODULES.progress.setFilter('user', this.value)">
-          <option value="all">全部拍摄者</option>
-          ${(App.users || []).map(u => `<option value="${u.id}" ${photoFilters.user === u.id ? 'selected' : ''}>${u.avatar} ${u.name}</option>`).join('')}
-        </select>
-        <div style="flex:1"></div>
-        <button class="btn btn-sm ${photoView === 'grid' ? 'btn-primary' : 'btn-secondary'}" onclick="MODULES.progress.setPhotoView('grid')">⊞ 网格</button>
-        <button class="btn btn-sm ${photoView === 'timeline' ? 'btn-primary' : 'btn-secondary'}" onclick="MODULES.progress.setPhotoView('timeline')">☰ 时间线</button>
-      </div>
-    `;
-  }
-
-  function getFilteredPhotos() {
-    if (!data.photos) return [];
-    return data.photos.filter(ph => {
-      if (photoFilters.phase !== 'all' && ph.tags?.phase !== photoFilters.phase) return false;
-      if (photoFilters.location !== 'all' && !(ph.tags?.location || []).includes(photoFilters.location)) return false;
-      if (photoFilters.nature !== 'all' && ph.tags?.nature !== photoFilters.nature) return false;
-      if (photoFilters.user !== 'all' && ph.takenBy !== photoFilters.user) return false;
-      if (photoFilters.dateFrom && ph.date < photoFilters.dateFrom) return false;
-      if (photoFilters.dateTo && ph.date > photoFilters.dateTo) return false;
-      return true;
-    }).sort((a, b) => b.date.localeCompare(a.date));
-  }
-
-  function renderPhotoGrid(photos) {
-    if (photos.length === 0) {
-      return `<div class="empty-state"><div class="empty-state-icon">📷</div><div class="empty-state-text">暂无照片</div><div class="text-sm text-faint">拖拽或点击上传照片</div></div>`;
-    }
-    let html = '<div class="grid-4" id="photoGrid">';
-    photos.forEach(ph => {
-      const user = getUser(ph.takenBy);
-      const tagsHtml = [];
-      if (ph.tags?.phase) tagsHtml.push(`<span class="badge badge-blue">${ph.tags.phase}</span>`);
-      if (ph.tags?.nature) tagsHtml.push(`<span class="badge badge-${ph.tags.nature === '发现问题' ? 'red' : (ph.tags.nature === '验收通过' ? 'green' : 'yellow')}">${ph.tags.nature}</span>`);
-      (ph.tags?.location || []).forEach(loc => tagsHtml.push(`<span class="badge badge-gray">${loc}</span>`));
-
-      html += `
-        <div class="photo-card" data-photo-id="${ph.id}" onclick="MODULES.progress.viewPhoto('${ph.id}')">
-          <div class="photo-card-img">
-            <img src="" data-src="${ph.fileName}" alt="${escapeHtml(ph.note || '照片')}" style="display:none" onload="this.style.display='block';this.nextElementSibling.style.display='none'">
-            <div class="photo-card-placeholder">📷</div>
-          </div>
-          <div class="photo-card-info">
-            <div class="flex-between" style="margin-bottom:4px">
-              <span class="text-xs text-faint">${ph.date}</span>
-              <span class="text-xs text-faint">${user.avatar} ${user.name}</span>
-            </div>
-            <div class="photo-card-tags">${tagsHtml.join('')}</div>
-            ${ph.note ? `<div class="text-xs" style="color:var(--ink-light);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(ph.note)}</div>` : ''}
-          </div>
-        </div>
-      `;
-    });
-    html += '</div>';
-    return html;
-  }
-
-  function renderPhotoTimeline(photos) {
-    if (photos.length === 0) {
-      return `<div class="empty-state"><div class="empty-state-icon">📷</div><div class="empty-state-text">暂无照片</div></div>`;
-    }
-    const groups = {};
-    photos.forEach(ph => {
-      if (!groups[ph.date]) groups[ph.date] = [];
-      groups[ph.date].push(ph);
-    });
-    let html = '<div style="display:flex;flex-direction:column;gap:20px">';
-    Object.keys(groups).sort().reverse().forEach(date => {
-      html += `<div class="app-card" style="padding:16px"><div class="text-sm" style="font-weight:600;margin-bottom:12px;color:var(--blue)">${date}</div><div class="grid-4">`;
-      groups[date].forEach(ph => {
-        const user = getUser(ph.takenBy);
-        const tagsHtml = [];
-        if (ph.tags?.phase) tagsHtml.push(`<span class="badge badge-blue">${ph.tags.phase}</span>`);
-        if (ph.tags?.nature) tagsHtml.push(`<span class="badge badge-${ph.tags.nature === '发现问题' ? 'red' : (ph.tags.nature === '验收通过' ? 'green' : 'yellow')}">${ph.tags.nature}</span>`);
-        (ph.tags?.location || []).forEach(loc => tagsHtml.push(`<span class="badge badge-gray">${loc}</span>`));
-        html += `
-          <div class="photo-card" data-photo-id="${ph.id}" onclick="MODULES.progress.viewPhoto('${ph.id}')">
-            <div class="photo-card-img">
-              <img src="" data-src="${ph.fileName}" alt="${escapeHtml(ph.note || '照片')}" style="display:none" onload="this.style.display='block';this.nextElementSibling.style.display='none'">
-              <div class="photo-card-placeholder">📷</div>
-            </div>
-            <div class="photo-card-info">
-              <div class="flex-between"><span class="text-xs text-faint">${user.avatar} ${user.name}</span></div>
-              <div class="photo-card-tags">${tagsHtml.join('')}</div>
-            </div>
-          </div>
-        `;
-      });
-      html += '</div></div>';
-    });
-    html += '</div>';
-    return html;
-  }
-
-  function renderPhotos() {
-    const photos = getFilteredPhotos();
-    let html = renderPhotoFilters();
-    html += `
-      <div style="margin-bottom:16px">
-        <button class="btn btn-primary btn-sm" onclick="document.getElementById('photoInput').click()">+ 上传照片</button>
-        <input type="file" id="photoInput" accept="image/*" multiple style="display:none" onchange="MODULES.progress.handleFileSelect(this.files)">
-        <span class="text-xs text-faint" style="margin-left:10px">支持拖拽上传</span>
-      </div>
-      <div id="photoDropZone" style="border:2px dashed var(--border-medium);border-radius:var(--radius);padding:40px;text-align:center;color:var(--ink-faint);margin-bottom:20px;display:none">
-        <div style="font-size:2rem;margin-bottom:8px">📥</div>
-        <div>松开鼠标上传照片</div>
-      </div>
-    `;
-    if (photoView === 'grid') html += renderPhotoGrid(photos);
-    else html += renderPhotoTimeline(photos);
-    return html;
-  }
-
-  // ── Photo: Load thumbnails via URL ──
-  async function loadPhotoThumbnails() {
-    const imgs = container().querySelectorAll('img[data-src]');
-    for (const img of imgs) {
-      const url = img.getAttribute('data-src');
-      if (url && url.startsWith('http')) {
-        img.src = url;
-      }
-    }
-  }
-
-  // ── Photo: Upload to Supabase Storage ──
-  async function savePhotoFile(file, dateFolder) {
-    if (!App.currentProject) {
-      App.showToast('请先登录', 'warning');
-      return null;
-    }
-    try {
-      const ext = file.name.split('.').pop();
-      const fileName = 'IMG_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5) + '.' + ext;
-      // 确保 dateFolder 安全（移除特殊字符）
-      const safeDateFolder = dateFolder.replace(/[^a-zA-Z0-9_-]/g, '_');
-      const safePath = `projects/${App.currentProject.id}/photos/${safeDateFolder}/${fileName}`;
-      const result = await App.uploadFile('images', safePath, file);
-      if (result.error) throw result.error;
-      return result.url;
-    } catch (e) {
-      console.error('Upload photo failed:', e);
-      App.showToast('保存照片失败: ' + e.message, 'error');
-      return null;
-    }
-  }
-
-  async function handleFileSelect(files) {
-    if (!files || files.length === 0) return;
-    const uploaded = [];
-    for (const file of Array.from(files)) {
-      // Try to read EXIF date, fallback to today
-      let date = getToday();
-      // Simple heuristic: check file name for date pattern YYYYMMDD or use lastModified
-      const nameMatch = file.name.match(/(20\d{2})(\d{2})(\d{2})/);
-      if (nameMatch) date = `${nameMatch[1]}-${nameMatch[2]}-${nameMatch[3]}`;
-      else {
-        const d = new Date(file.lastModified);
-        date = d.toISOString().slice(0, 10);
-      }
-      const path = await savePhotoFile(file, date);
-      if (path) {
-        uploaded.push({
-          id: generateId('ph'),
-          fileName: path,
-          date,
-          takenBy: getCurrentUser().id,
-          tags: { phase: '', location: [], nature: '正常进度' },
-          note: ''
-        });
-      }
-    }
-    if (uploaded.length > 0) {
-      data.photos = data.photos || [];
-      data.photos.push(...uploaded);
-      save();
-      render();
-      App.showToast(`已上传 ${uploaded.length} 张照片`, 'success');
-    } else {
-      App.showToast('没有照片上传成功，请查看权限或文件格式', 'warning');
-    }
-  }
-
-  // ── Photo: View / Edit / Delete ──
-  async function viewPhoto(photoId) {
-    const ph = (data.photos || []).find(p => p.id === photoId);
-    if (!ph) return;
-    const user = getUser(ph.takenBy);
-    let imgUrl = '';
-    if (ph.fileName && ph.fileName.startsWith('http')) {
-      imgUrl = ph.fileName;
-    }
-
-    const overlay = document.getElementById('modalOverlay');
-    const content = document.getElementById('modalContent');
-    content.innerHTML = `
-      <div class="modal-header">
-        <div class="modal-title">📷 照片详情</div>
-        <button class="modal-close" onclick="closeModal()">×</button>
-      </div>
-      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
-        <div style="text-align:center;background:var(--cream-deep);border-radius:var(--radius);overflow:hidden">
-          ${imgUrl ? `<img src="${imgUrl}" style="max-width:100%;max-height:50vh;object-fit:contain;display:block;margin:0 auto">` : '<div style="padding:40px;color:var(--ink-faint)">无法加载图片</div>'}
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">日期</label>
-            <input type="date" class="app-input" id="photoDate" value="${ph.date}">
-          </div>
-          <div>
-            <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">拍摄者</label>
-            <select class="app-input app-select" id="photoUser">
-              ${(App.users || []).map(u => `<option value="${u.id}" ${ph.takenBy === u.id ? 'selected' : ''}>${u.avatar} ${u.name}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div>
-          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">阶段 Tag（单选）</label>
-          <select class="app-input app-select" id="photoPhase">
-            <option value="">未选择</option>
-            ${PHASE_NAMES.map(p => `<option value="${p}" ${ph.tags?.phase === p ? 'selected' : ''}>${p}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">位置 Tag（多选）</label>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            ${LOCATION_TAGS.map(loc => `
-              <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer;padding:4px 8px;border-radius:6px;background:var(--cream-deep)">
-                <input type="checkbox" value="${loc}" ${(ph.tags?.location || []).includes(loc) ? 'checked' : ''} class="photoLocCb">
-                ${loc}
-              </label>
-            `).join('')}
-          </div>
-        </div>
-        <div>
-          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">性质 Tag（单选）</label>
-          <select class="app-input app-select" id="photoNature">
-            ${NATURE_TAGS.map(n => `<option value="${n}" ${ph.tags?.nature === n ? 'selected' : ''}>${n}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">备注</label>
-          <textarea class="app-input app-textarea" id="photoNote" rows="2">${escapeHtml(ph.note || '')}</textarea>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-danger" onclick="MODULES.progress.deletePhoto('${ph.id}')">🗑 删除</button>
-        <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
-        <button class="btn btn-primary" id="btnSavePhoto">保存</button>
-      </div>
-    `;
-    overlay.classList.add('show');
-
-    document.getElementById('btnSavePhoto').addEventListener('click', () => {
-      ph.date = document.getElementById('photoDate').value;
-      ph.takenBy = document.getElementById('photoUser').value;
-      ph.tags = {
-        phase: document.getElementById('photoPhase').value,
-        location: Array.from(document.querySelectorAll('.photoLocCb:checked')).map(cb => cb.value),
-        nature: document.getElementById('photoNature').value
-      };
-      ph.note = document.getElementById('photoNote').value;
-      save();
-      closeModal();
-      render();
-      App.showToast('照片信息已更新', 'success');
-    });
-  }
-
-  async function deletePhoto(photoId) {
-    const ok = await App.confirm('确定要删除这张照片吗？');
-    if (!ok) return;
-    const idx = (data.photos || []).findIndex(p => p.id === photoId);
-    if (idx === -1) return;
-    data.photos.splice(idx, 1);
-    save();
-    closeModal();
-    render();
-    App.showToast('照片已删除', 'success');
-  }
-
-  // ── Filters & View ──
-  function setFilter(key, value) {
-    photoFilters[key] = value;
-    render();
-  }
-
-  function setPhotoView(view) {
-    photoView = view;
-    render();
-  }
-
-  // ── Drag & Drop ──
-  function setupDragDrop() {
-    const zone = container();
-    if (!zone) return;
-    zone.addEventListener('dragover', e => {
-      if (currentTab !== 'photos') return;
-      e.preventDefault();
-      const dz = document.getElementById('photoDropZone');
-      if (dz) dz.style.display = 'block';
-    });
-    zone.addEventListener('dragleave', e => {
-      e.preventDefault();
-      const dz = document.getElementById('photoDropZone');
-      if (dz && !zone.contains(e.relatedTarget)) dz.style.display = 'none';
-    });
-    zone.addEventListener('drop', e => {
-      if (currentTab !== 'photos') return;
-      e.preventDefault();
-      const dz = document.getElementById('photoDropZone');
-      if (dz) dz.style.display = 'none';
-      const files = e.dataTransfer.files;
-      if (files.length) handleFileSelect(files);
-    });
-  }
-
-  // ── Main Render ──
-  function render() {
-    const el = container();
-    if (!el) return;
-    // Clean up old object URLs
-    photoObjectURLs.forEach(url => URL.revokeObjectURL(url));
-    photoObjectURLs = [];
-
-    let html = renderTabs();
-    if (currentTab === 'phases') html += renderPhases();
-    else html += renderPhotos();
-    el.innerHTML = html;
-
-    // Bind tab clicks
-    el.querySelectorAll('.tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        currentTab = tab.dataset.tab;
-        render();
-      });
-    });
-
-    // Load photo thumbnails
-    if (currentTab === 'photos') {
-      loadPhotoThumbnails();
-    }
-  }
-
-  // ── Module API ──
-  const module = {
-    name: '进度',
-    icon: '📅',
-
-    init() {
-      const el = container();
-      if (el) {
-        el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">加载中...</div></div>';
-      }
-      setupDragDrop();
-    },
-
-    render() {
-      render();
-    },
-
-    onShow() {
-      // Refresh data from App
-      const d = App.getData('progress');
-      if (d) {
-        data = d;
-        ensureDefaultPhases();
-      }
-      render();
-    },
-
-    onHide() {
-      // Clean up object URLs
-      photoObjectURLs.forEach(url => URL.revokeObjectURL(url));
-      photoObjectURLs = [];
-    },
-
-    getData() {
-      return JSON.parse(JSON.stringify(data));
-    },
-
-    setData(d) {
-      if (d) {
-        data = d;
-        ensureDefaultPhases();
-      }
-    },
-
-    isDirty() {
-      return false; // auto-save handles this
-    },
-
-    // Exposed for inline onclick handlers
-    editPhase,
-    setCurrentPhase,
-    handleFileSelect,
-    viewPhoto,
-    deletePhoto,
-    setFilter,
-    setPhotoView
-  };
-
+  function renderPhotoFilters() { return `<div class="filter-bar"><select class="app-input app-select" id="filterPhase" onchange="MODULES.progress.setFilter('phase', this.value)"><option value="all">全部阶段</option>${PHASE_NAMES.map(p => `<option value="${p}" ${photoFilters.phase === p ? 'selected' : ''}>${p}</option>`).join('')}</select><select class="app-input app-select" id="filterLocation" onchange="MODULES.progress.setFilter('location', this.value)"><option value="all">全部位置</option>${LOCATION_TAGS.map(l => `<option value="${l}" ${photoFilters.location === l ? 'selected' : ''}>${l}</option>`).join('')}</select><select class="app-input app-select" id="filterNature" onchange="MODULES.progress.setFilter('nature', this.value)"><option value="all">全部性质</option>${NATURE_TAGS.map(n => `<option value="${n}" ${photoFilters.nature === n ? 'selected' : ''}>${n}</option>`).join('')}</select><input type="date" class="app-input" id="filterDateFrom" value="${photoFilters.dateFrom}" onchange="MODULES.progress.setFilter('dateFrom', this.value)"><input type="date" class="app-input" id="filterDateTo" value="${photoFilters.dateTo}" onchange="MODULES.progress.setFilter('dateTo', this.value)"><select class="app-input app-select" id="filterUser" onchange="MODULES.progress.setFilter('user', this.value)"><option value="all">全部拍摄者</option>${(App.users || []).map(u => `<option value="${u.id}" ${photoFilters.user === u.id ? 'selected' : ''}>${u.avatar} ${u.name}</option>`).join('')}</select><div style="flex:1"></div><button class="btn btn-sm ${photoView === 'grid' ? 'btn-primary' : 'btn-secondary'}" onclick="MODULES.progress.setPhotoView('grid')">⊞ 网格</button><button class="btn btn-sm ${photoView === 'timeline' ? 'btn-primary' : 'btn-secondary'}" onclick="MODULES.progress.setPhotoView('timeline')">☰ 时间线</button></div>`; }
+  function getFilteredPhotos() { return (data.photos || []).filter(ph => { if (photoFilters.phase !== 'all' && ph.tags?.phase !== photoFilters.phase) return false; if (photoFilters.location !== 'all' && !(ph.tags?.location || []).includes(photoFilters.location)) return false; if (photoFilters.nature !== 'all' && ph.tags?.nature !== photoFilters.nature) return false; if (photoFilters.user !== 'all' && ph.takenBy !== photoFilters.user) return false; if (photoFilters.dateFrom && ph.date < photoFilters.dateFrom) return false; if (photoFilters.dateTo && ph.date > photoFilters.dateTo) return false; return true; }).sort((a, b) => b.date.localeCompare(a.date)); }
+  function renderPhotoGrid(photos) { if (!photos.length) return `<div class="empty-state"><div class="empty-state-icon">📷</div><div class="empty-state-text">暂无照片</div><div class="text-sm text-faint">拖拽或点击上传照片</div></div>`; return `<div class="grid-4" id="photoGrid">${photos.map(ph => { const user = getUser(ph.takenBy); const tags = []; if (ph.tags?.phase) tags.push(`<span class="badge badge-blue">${ph.tags.phase}</span>`); if (ph.tags?.nature) tags.push(`<span class="badge badge-${ph.tags.nature === '发现问题' ? 'red' : ph.tags.nature === '验收通过' ? 'green' : 'yellow'}">${ph.tags.nature}</span>`); (ph.tags?.location || []).forEach(loc => tags.push(`<span class="badge badge-gray">${loc}</span>`)); return `<div class="photo-card" data-photo-id="${ph.id}" onclick="MODULES.progress.viewPhoto('${ph.id}')"><div class="photo-card-img"><img src="" data-src="${ph.fileName}" alt="${escapeHtml(ph.note || '照片')}" style="display:none" onload="this.style.display='block';this.nextElementSibling.style.display='none'"><div class="photo-card-placeholder">📷</div></div><div class="photo-card-info"><div class="flex-between" style="margin-bottom:4px"><span class="text-xs text-faint">${ph.date}</span><span class="text-xs text-faint">${user.avatar} ${user.name}</span></div><div class="photo-card-tags">${tags.join('')}</div>${ph.note ? `<div class="text-xs" style="color:var(--ink-light);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(ph.note)}</div>` : ''}</div></div>`; }).join('')}</div>`; }
+  function renderPhotoTimeline(photos) { if (!photos.length) return `<div class="empty-state"><div class="empty-state-icon">📷</div><div class="empty-state-text">暂无照片</div></div>`; const groups = {}; photos.forEach(ph => { (groups[ph.date] ||= []).push(ph); }); return `<div style="display:flex;flex-direction:column;gap:20px">${Object.keys(groups).sort().reverse().map(date => `<div class="app-card" style="padding:16px"><div class="text-sm" style="font-weight:600;margin-bottom:12px;color:var(--blue)">${date}</div>${renderPhotoGrid(groups[date])}</div>`).join('')}</div>`; }
+  function renderPhotos() { const photos = getFilteredPhotos(); return renderPhotoFilters() + `<div style="margin-bottom:16px"><button class="btn btn-primary btn-sm" onclick="document.getElementById('photoInput').click()">+ 上传照片</button><input type="file" id="photoInput" accept="image/*" multiple style="display:none" onchange="MODULES.progress.handleFileSelect(this.files)"><span class="text-xs text-faint" style="margin-left:10px">支持拖拽上传</span></div><div id="photoDropZone" style="border:2px dashed var(--border-medium);border-radius:var(--radius);padding:40px;text-align:center;color:var(--ink-faint);margin-bottom:20px;display:none"><div style="font-size:2rem;margin-bottom:8px">📥</div><div>松开鼠标上传照片</div></div>` + (photoView === 'grid' ? renderPhotoGrid(photos) : renderPhotoTimeline(photos)); }
+  async function loadPhotoThumbnails() { container().querySelectorAll('img[data-src]').forEach(img => { const url = img.getAttribute('data-src'); if (url && url.startsWith('http')) img.src = url; }); }
+  async function savePhotoFile(file, dateFolder) { if (!App.currentProject) { App.showToast('请先登录', 'warning'); return null; } try { const ext = file.name.split('.').pop(); const fileName = 'IMG_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5) + '.' + ext; const safePath = `projects/${App.currentProject.id}/photos/${dateFolder.replace(/[^a-zA-Z0-9_-]/g, '_')}/${fileName}`; const result = await App.uploadFile('images', safePath, file); if (result.error) throw result.error; return result.url; } catch (e) { console.error('Upload photo failed:', e); App.showToast('保存照片失败: ' + e.message, 'error'); return null; } }
+  async function handleFileSelect(files) { if (!files || !files.length) return; const uploaded = []; const currentPhase = data.phases.find(p => p.id === data.currentPhaseId); for (const file of Array.from(files)) { let date = getToday(); const nameMatch = file.name.match(/(20\d{2})(\d{2})(\d{2})/); if (nameMatch) date = `${nameMatch[1]}-${nameMatch[2]}-${nameMatch[3]}`; else if (file.lastModified) date = new Date(file.lastModified).toISOString().slice(0, 10); const path = await savePhotoFile(file, date); if (path) uploaded.push({ id: generateId('ph'), fileName: path, date, takenBy: getCurrentUser().id, tags: { phase: currentPhase?.name || '', location: [], nature: '正常进度' }, note: '' }); } if (uploaded.length) { data.photos.push(...uploaded); save(); render(); App.showToast(`已上传 ${uploaded.length} 张照片`, 'success'); } else App.showToast('没有照片上传成功，请查看权限或文件格式', 'warning'); }
+  async function viewPhoto(photoId) { const ph = (data.photos || []).find(p => p.id === photoId); if (!ph) return; const overlay = document.getElementById('modalOverlay'); const content = document.getElementById('modalContent'); content.innerHTML = `<div class="modal-header"><div class="modal-title">📷 照片详情</div><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body" style="display:flex;flex-direction:column;gap:14px"><div style="text-align:center;background:var(--cream-deep);border-radius:var(--radius);overflow:hidden">${ph.fileName ? `<img src="${ph.fileName}" style="max-width:100%;max-height:50vh;object-fit:contain;display:block;margin:0 auto">` : '<div style="padding:40px;color:var(--ink-faint)">无法加载图片</div>'}</div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">阶段</label><select class="app-input app-select" id="photoPhase"><option value="">未选择</option>${PHASE_NAMES.map(p => `<option value="${p}" ${ph.tags?.phase === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">性质</label><select class="app-input app-select" id="photoNature">${NATURE_TAGS.map(n => `<option value="${n}" ${ph.tags?.nature === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">备注</label><textarea class="app-input app-textarea" id="photoNote" rows="2">${escapeHtml(ph.note || '')}</textarea></div></div><div class="modal-footer"><button class="btn btn-danger" onclick="MODULES.progress.deletePhoto('${ph.id}')">🗑 删除</button><button class="btn btn-secondary" onclick="closeModal()">关闭</button><button class="btn btn-primary" id="btnSavePhoto">保存</button></div>`; overlay.classList.add('show'); document.getElementById('btnSavePhoto').addEventListener('click', () => { ph.tags = ph.tags || {}; ph.tags.phase = document.getElementById('photoPhase').value; ph.tags.nature = document.getElementById('photoNature').value; ph.note = document.getElementById('photoNote').value; save(); closeModal(); render(); App.showToast('照片信息已更新', 'success'); }); }
+  async function deletePhoto(photoId) { const ok = await App.confirm('确定要删除这张照片吗？'); if (!ok) return; data.photos = (data.photos || []).filter(p => p.id !== photoId); save(); closeModal(); render(); App.showToast('照片已删除', 'success'); }
+  function setFilter(key, value) { photoFilters[key] = value; render(); }
+  function setPhotoView(view) { photoView = view; render(); }
+  function setupDragDrop() { const zone = container(); if (!zone) return; zone.addEventListener('dragover', e => { if (currentTab !== 'photos') return; e.preventDefault(); const dz = document.getElementById('photoDropZone'); if (dz) dz.style.display = 'block'; }); zone.addEventListener('drop', e => { if (currentTab !== 'photos') return; e.preventDefault(); const dz = document.getElementById('photoDropZone'); if (dz) dz.style.display = 'none'; if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files); }); }
+  function render() { const el = container(); if (!el) return; photoObjectURLs.forEach(url => URL.revokeObjectURL(url)); photoObjectURLs = []; ensureDefaultPhases(); el.innerHTML = renderTabs() + (currentTab === 'phases' ? renderPhases() : renderPhotos()); el.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { currentTab = tab.dataset.tab; render(); })); if (currentTab === 'photos') loadPhotoThumbnails(); }
+  const module = { name: '进度', icon: '📅', init() { const el = container(); if (el) el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">加载中...</div></div>'; setupDragDrop(); }, render, onShow() { const d = App.getData('progress'); if (d) data = d; ensureDefaultPhases(); render(); }, onHide() { photoObjectURLs.forEach(url => URL.revokeObjectURL(url)); photoObjectURLs = []; }, getData() { return JSON.parse(JSON.stringify(data)); }, setData(d) { if (d) { data = d; ensureDefaultPhases(); } }, isDirty() { return false; }, editPhase, setCurrentPhase, toggleNode, handleFileSelect, viewPhoto, deletePhoto, setFilter, setPhotoView };
   registerModule('progress', module);
 })();
 

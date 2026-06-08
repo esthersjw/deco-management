@@ -18,10 +18,26 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- RLS: 用户只能看到自己的项目
+-- RLS helpers
+CREATE OR REPLACE FUNCTION public.is_project_owner(project_uuid UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.projects
+    WHERE id = project_uuid AND owner_id = auth.uid()
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+CREATE OR REPLACE FUNCTION public.is_project_member(project_uuid UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.project_members
+    WHERE project_id = project_uuid AND user_id = auth.uid()
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can view own projects" ON projects
-  FOR SELECT USING (owner_id = auth.uid());
+CREATE POLICY "Users can view accessible projects" ON projects
+  FOR SELECT USING (owner_id = auth.uid() OR public.is_project_member(id));
 CREATE POLICY "Users can insert own projects" ON projects
   FOR INSERT WITH CHECK (owner_id = auth.uid());
 CREATE POLICY "Users can update own projects" ON projects
@@ -44,16 +60,21 @@ CREATE TABLE IF NOT EXISTS project_members (
 
 ALTER TABLE project_members ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Members can view project members" ON project_members
-  FOR SELECT USING (
-    user_id = auth.uid() OR
-    project_id IN (SELECT id FROM projects WHERE owner_id = auth.uid())
-  );
+  FOR SELECT USING (user_id = auth.uid() OR public.is_project_owner(project_id));
+CREATE POLICY "Project owners can invite members" ON project_members
+  FOR INSERT WITH CHECK (invited_by = auth.uid() AND public.is_project_owner(project_id));
+CREATE POLICY "Project owners can update members" ON project_members
+  FOR UPDATE USING (public.is_project_owner(project_id))
+  WITH CHECK (public.is_project_owner(project_id));
+CREATE POLICY "Project owners can remove members" ON project_members
+  FOR DELETE USING (public.is_project_owner(project_id));
 
 -- ============================================
 -- 3. 用户资料表 (profiles) - 扩展 auth.users
 -- ============================================
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT UNIQUE,
   display_name TEXT,
   avatar_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -70,8 +91,8 @@ CREATE POLICY "Users can update own profile" ON profiles
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, display_name)
-  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'display_name', NEW.email));
+  INSERT INTO public.profiles (id, email, display_name)
+  VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'display_name', NEW.email));
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

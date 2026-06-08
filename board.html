@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>装修指挥官 · 情绪板</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 /* ========== BASE ========== */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
@@ -44,24 +45,103 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
 <div id="boardContainer"></div>
 
 <script>
-// ========== LOCALSTORAGE DATA ADAPTER ==========
+// ========== SUPABASE DATA ADAPTER ==========
+const SUPABASE_URL = 'https://morpcqavnwnzradgtnlv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vcnBjcWF2bnduenJhZGd0bmx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MTMwNjgsImV4cCI6MjA5NjI4OTA2OH0.KerqoGtG2csNBHPMRyRtY_diyeP6k1pM0FLBAYqJ5Fg';
+const BOARD_SUPABASE_KEY = 'board';
 const BoardStorage = {
-  getData() {
+  client: null,
+  currentUser: null,
+  currentProject: null,
+
+  async init() {
+    this.client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data: { session } } = await this.client.auth.getSession();
+    if (!session?.user) return null;
+    this.currentUser = session.user;
+    this.currentProject = await this.resolveProject();
+    return this.currentProject;
+  },
+
+  localKey() {
+    return this.currentProject ? `装修指挥官_board_${this.currentProject.id}` : '装修指挥官_board';
+  },
+
+  async resolveProject() {
+    const { data: ownedProjects, error: ownedError } = await this.client
+      .from('projects')
+      .select('*')
+      .eq('owner_id', this.currentUser.id)
+      .order('created_at', { ascending: true });
+    if (ownedError) throw ownedError;
+
+    const { data: memberRows, error: memberError } = await this.client
+      .from('project_members')
+      .select('role, projects(*)')
+      .eq('user_id', this.currentUser.id)
+      .order('created_at', { ascending: true });
+    if (memberError) throw memberError;
+
+    const projectMap = new Map();
+    (ownedProjects || []).forEach(project => projectMap.set(project.id, { ...project, accessType: 'owner' }));
+    (memberRows || []).forEach(row => {
+      if (row.projects && !projectMap.has(row.projects.id)) projectMap.set(row.projects.id, { ...row.projects, accessType: 'shared' });
+    });
+    const projects = Array.from(projectMap.values());
+    const savedProjectId = localStorage.getItem(`deco_current_project_id_${this.currentUser.id}`);
+    return projects.find(project => project.id === savedProjectId)
+      || projects.find(project => project.accessType === 'shared')
+      || projects[0]
+      || null;
+  },
+
+  async getData() {
     try {
-      const raw = localStorage.getItem('装修指挥官_board');
+      if (this.client && this.currentProject) {
+        const { data, error } = await this.client
+          .from('module_data')
+          .select('data')
+          .eq('project_id', this.currentProject.id)
+          .eq('module_key', BOARD_SUPABASE_KEY)
+          .maybeSingle();
+        if (error) throw error;
+        if (data?.data) return data.data;
+      }
+      const raw = localStorage.getItem(this.localKey());
       return raw ? JSON.parse(raw) : null;
     } catch (e) {
       console.warn('Failed to load board data:', e);
-      return null;
+      const raw = localStorage.getItem(this.localKey());
+      return raw ? JSON.parse(raw) : null;
     }
   },
+
   setData(data) {
     try {
       data.updatedAt = new Date().toISOString();
-      localStorage.setItem('装修指挥官_board', JSON.stringify(data));
+      localStorage.setItem(this.localKey(), JSON.stringify(data));
+      if (this.client && this.currentProject) {
+        this.client.from('module_data').upsert({
+          project_id: this.currentProject.id,
+          module_key: BOARD_SUPABASE_KEY,
+          data
+        }, { onConflict: 'project_id,module_key' }).then(({ error }) => {
+          if (error) console.warn('Failed to sync board data:', error);
+        });
+      }
     } catch (e) {
       console.warn('Failed to save board data:', e);
     }
+  },
+
+  async uploadImage(file) {
+    if (!this.client || !this.currentProject) return null;
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+    const path = `projects/${this.currentProject.id}/board/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await this.client.storage.from('board-assets').upload(path, file, { cacheControl: '3600', upsert: false });
+    if (error) throw error;
+    const { data } = this.client.storage.from('board-assets').getPublicUrl(path);
+    return data.publicUrl;
   }
 };
 
@@ -1758,25 +1838,37 @@ const BoardStorage = {
     this.value = '';
   }
 
-  function loadImageFile(file, id) {
+  async function loadImageFile(file, id) {
     if (!file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      const d = cards.get(id); if (!d) return;
-      const oldImg = d.imgData; d.imgData = ev.target.result;
-      const img = new Image();
-      img.onload = function() {
-        d.imgNatW = img.naturalWidth; d.imgNatH = img.naturalHeight;
-        const maxDim = 400;
-        let w = img.naturalWidth, h = img.naturalHeight;
-        if (w > maxDim || h > maxDim) { if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; } else { w = Math.round(w * maxDim / h); h = maxDim; } }
-        d.w = w; d.h = h; sizeCard(id);
-        pushUndo({ type: 'edit', cardId: id, field: 'imgData', oldVal: oldImg });
-        syncCardDOM(id); updateConnections(); scheduleSave();
-      };
-      img.src = ev.target.result;
+    const localDataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = ev => resolve(ev.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    let imageSrc = localDataUrl;
+    try {
+      const uploadedUrl = await BoardStorage.uploadImage(file);
+      if (uploadedUrl) imageSrc = uploadedUrl;
+    } catch (e) {
+      console.warn('Board image upload failed, using local data URL fallback:', e);
+      showToast('图片云端上传失败，只会保存在本机');
+    }
+
+    const d = cards.get(id); if (!d) return;
+    const oldImg = d.imgData; d.imgData = imageSrc;
+    const img = new Image();
+    img.onload = function() {
+      d.imgNatW = img.naturalWidth; d.imgNatH = img.naturalHeight;
+      const maxDim = 400;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > maxDim || h > maxDim) { if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; } else { w = Math.round(w * maxDim / h); h = maxDim; } }
+      d.w = w; d.h = h; sizeCard(id);
+      pushUndo({ type: 'edit', cardId: id, field: 'imgData', oldVal: oldImg });
+      syncCardDOM(id); updateConnections(); scheduleSave();
     };
-    reader.readAsDataURL(file);
+    img.src = imageSrc;
   }
 
   function onCanvasDrop(e) {
@@ -2733,17 +2825,35 @@ const BoardStorage = {
   }
 
   // ============ INIT ============
-  initBoard();
-  const data = BoardStorage.getData();
-  if (data) {
-    loadBoardData(data);
-  } else {
-    applyTransform();
-    updateConnections();
-    renderDrawStrokes();
-    renderGroups();
-    updateUndoUI();
+  async function bootBoard() {
+    initBoard();
+    try {
+      await BoardStorage.init();
+      const data = await BoardStorage.getData();
+      if (data) {
+        loadBoardData(data);
+      } else {
+        applyTransform();
+        updateConnections();
+        renderDrawStrokes();
+        renderGroups();
+        updateUndoUI();
+      }
+    } catch (e) {
+      console.warn('Board cloud init failed, using local fallback:', e);
+      const data = await BoardStorage.getData();
+      if (data) loadBoardData(data);
+      else {
+        applyTransform();
+        updateConnections();
+        renderDrawStrokes();
+        renderGroups();
+        updateUndoUI();
+      }
+    }
   }
+
+  bootBoard();
 
 })();
 </script>

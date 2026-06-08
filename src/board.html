@@ -95,58 +95,138 @@ const BoardStorage = {
       || null;
   },
 
+  migratedKey() {
+    return this.currentProject ? `装修指挥官_board_migrated_${this.currentProject.id}` : '装修指挥官_board_migrated';
+  },
+
+  parseLocal(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      console.warn('Failed to parse local board data:', key, e);
+      return null;
+    }
+  },
+
+  dataScore(data) {
+    if (!data) return 0;
+    const cards = data.cards || [];
+    const images = cards.filter(card => card.type === 'image' && card.imgData).length;
+    const strokes = (data.drawStrokes || []).length;
+    return cards.length * 10 + images * 100 + strokes;
+  },
+
   getLocalData() {
-    const raw = localStorage.getItem(this.localKey()) || localStorage.getItem('装修指挥官_board');
-    return raw ? JSON.parse(raw) : null;
+    return this.parseLocal(this.localKey()) || this.parseLocal('装修指挥官_board');
+  },
+
+  async getCloudData() {
+    if (!this.client || !this.currentProject) return null;
+    const { data, error } = await this.client
+      .from('module_data')
+      .select('data')
+      .eq('project_id', this.currentProject.id)
+      .eq('module_key', BOARD_SUPABASE_KEY)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.data || null;
   },
 
   async getData() {
+    const projectLocal = this.parseLocal(this.localKey());
+    const legacyLocal = this.parseLocal('装修指挥官_board');
+    const migrated = localStorage.getItem(this.migratedKey()) === '1';
     try {
-      if (this.client && this.currentProject) {
-        const { data, error } = await this.client
-          .from('module_data')
-          .select('data')
-          .eq('project_id', this.currentProject.id)
-          .eq('module_key', BOARD_SUPABASE_KEY)
-          .maybeSingle();
-        if (error) throw error;
-        if (data?.data) return data.data;
+      const cloudData = await this.getCloudData();
+      if (projectLocal && cloudData) {
+        const localTime = Date.parse(projectLocal.updatedAt || '') || 0;
+        const cloudTime = Date.parse(cloudData.updatedAt || '') || 0;
+        return localTime > cloudTime ? projectLocal : cloudData;
       }
-      return this.getLocalData();
+      if (cloudData) {
+        if (!migrated && legacyLocal && this.dataScore(legacyLocal) > this.dataScore(cloudData)) {
+          localStorage.setItem(this.migratedKey(), '1');
+          return legacyLocal;
+        }
+        return cloudData;
+      }
+      return projectLocal || legacyLocal || null;
     } catch (e) {
       console.warn('Failed to load board data:', e);
-      return this.getLocalData();
+      return projectLocal || legacyLocal || null;
     }
   },
 
   setData(data) {
+    data.updatedAt = new Date().toISOString();
     try {
-      data.updatedAt = new Date().toISOString();
       localStorage.setItem(this.localKey(), JSON.stringify(data));
-      if (this.client && this.currentProject) {
-        this.client.from('module_data').upsert({
-          project_id: this.currentProject.id,
-          module_key: BOARD_SUPABASE_KEY,
-          data
-        }, { onConflict: 'project_id,module_key' }).then(({ error }) => {
-          if (error) console.warn('Failed to sync board data:', error);
-        });
-      }
     } catch (e) {
-      console.warn('Failed to save board data:', e);
+      console.warn('Failed to save board data locally:', e);
+    }
+    if (this.currentProject) {
+      try { localStorage.setItem(this.migratedKey(), '1'); } catch (e) {}
+    }
+    if (this.client && this.currentProject) {
+      this.client.from('module_data').upsert({
+        project_id: this.currentProject.id,
+        module_key: BOARD_SUPABASE_KEY,
+        data
+      }, { onConflict: 'project_id,module_key' }).then(({ error }) => {
+        if (error) {
+          console.warn('Failed to sync board data:', error);
+          showBoardStorageWarning('云端保存失败，刷新后可能恢复旧状态');
+        }
+      });
     }
   },
 
-  async uploadImage(file) {
+  async uploadBlob(blob, ext = 'png') {
     if (!this.client || !this.currentProject) return null;
-    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
     const path = `projects/${this.currentProject.id}/board/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const { error } = await this.client.storage.from('board-assets').upload(path, file, { cacheControl: '3600', upsert: false });
+    const { error } = await this.client.storage.from('board-assets').upload(path, blob, { cacheControl: '3600', upsert: false, contentType: blob.type || `image/${ext}` });
     if (error) throw error;
     const { data } = this.client.storage.from('board-assets').getPublicUrl(path);
     return data.publicUrl;
+  },
+
+  async uploadImage(file) {
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+    return this.uploadBlob(file, ext);
+  },
+
+  async migrateEmbeddedImages(data) {
+    if (!data?.cards?.length || !this.client || !this.currentProject) return data;
+    let changed = false;
+    for (const card of data.cards) {
+      if (card.type !== 'image' || typeof card.imgData !== 'string' || !card.imgData.startsWith('data:image/')) continue;
+      try {
+        const mime = card.imgData.slice(5, card.imgData.indexOf(';')) || 'image/png';
+        const ext = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+        const blob = await (await fetch(card.imgData)).blob();
+        const url = await this.uploadBlob(blob, ext);
+        if (url) {
+          card.imgData = url;
+          changed = true;
+        }
+      } catch (e) {
+        console.warn('Failed to migrate embedded board image:', e);
+      }
+    }
+    if (changed) this.setData(data);
+    return data;
   }
 };
+
+function showBoardStorageWarning(message) {
+  const toast = document.getElementById('boardToast');
+  if (toast) {
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2400);
+  }
+}
 
 // ========== BOARD MODULE (Standalone) ==========
 (function() {
@@ -2832,8 +2912,9 @@ const BoardStorage = {
     initBoard();
     try {
       await BoardStorage.init();
-      const data = await BoardStorage.getData();
+      let data = await BoardStorage.getData();
       if (data) {
+        data = await BoardStorage.migrateEmbeddedImages(data);
         loadBoardData(data);
         BoardStorage.setData(data);
       } else {
@@ -2845,8 +2926,9 @@ const BoardStorage = {
       }
     } catch (e) {
       console.warn('Board cloud init failed, using local fallback:', e);
-      const data = await BoardStorage.getData();
+      let data = await BoardStorage.getData();
       if (data) {
+        data = await BoardStorage.migrateEmbeddedImages(data);
         loadBoardData(data);
         BoardStorage.setData(data);
       } else {

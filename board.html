@@ -2835,6 +2835,7 @@ const BoardStorage = {
       const data = await BoardStorage.getData();
       if (data) {
         loadBoardData(data);
+        BoardStorage.setData(data);
       } else {
         applyTransform();
         updateConnections();
@@ -2845,8 +2846,10 @@ const BoardStorage = {
     } catch (e) {
       console.warn('Board cloud init failed, using local fallback:', e);
       const data = await BoardStorage.getData();
-      if (data) loadBoardData(data);
-      else {
+      if (data) {
+        loadBoardData(data);
+        BoardStorage.setData(data);
+      } else {
         applyTransform();
         updateConnections();
         renderDrawStrokes();

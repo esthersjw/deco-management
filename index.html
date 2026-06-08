@@ -588,6 +588,7 @@ window.App = {
   supabase: null,
   currentUser: null,
   currentProject: null,
+  availableProjects: [],
   projectMembers: [],
   users: DEFAULT_CONFIG.users,
   config: DEFAULT_CONFIG,
@@ -645,6 +646,30 @@ window.App = {
 
   // 加载或创建项目
   async loadOrCreateProject() {
+    const projects = await this.loadAccessibleProjects();
+    if (projects.length > 0) {
+      const storageKey = `deco_current_project_id_${this.currentUser.id}`;
+      const savedProjectId = localStorage.getItem(storageKey);
+      this.currentProject = projects.find(project => project.id === savedProjectId)
+        || projects.find(project => project.accessType === 'shared')
+        || projects[0];
+      localStorage.setItem(storageKey, this.currentProject.id);
+    } else {
+      const { data: newProject, error: createError } = await this.supabase.from('projects').insert({
+        name: '我的装修项目',
+        owner_id: this.currentUser.id
+      }).select().single();
+      if (createError) throw createError;
+      this.currentProject = { ...newProject, accessType: 'owner', role: 'owner' };
+      this.availableProjects = [this.currentProject];
+      localStorage.setItem(`deco_current_project_id_${this.currentUser.id}`, this.currentProject.id);
+    }
+    await this.loadProjectMembers();
+    updateProjectName();
+    await this.loadAllData();
+  },
+
+  async loadAccessibleProjects() {
     const { data: ownedProjects, error: ownedError } = await this.supabase
       .from('projects')
       .select('*')
@@ -652,31 +677,36 @@ window.App = {
       .order('created_at', { ascending: true });
     if (ownedError) throw ownedError;
 
-    if (ownedProjects && ownedProjects.length > 0) {
-      this.currentProject = ownedProjects[0];
-    } else {
-      const { data: memberRows, error: memberError } = await this.supabase
-        .from('project_members')
-        .select('role, projects(*)')
-        .eq('user_id', this.currentUser.id)
-        .order('created_at', { ascending: true });
-      if (memberError) throw memberError;
-      const sharedProject = (memberRows || []).map(row => row.projects).find(Boolean);
+    const { data: memberRows, error: memberError } = await this.supabase
+      .from('project_members')
+      .select('role, projects(*)')
+      .eq('user_id', this.currentUser.id)
+      .order('created_at', { ascending: true });
+    if (memberError) throw memberError;
 
-      if (sharedProject) {
-        this.currentProject = sharedProject;
-      } else {
-        const { data: newProject, error: createError } = await this.supabase.from('projects').insert({
-          name: '我的装修项目',
-          owner_id: this.currentUser.id
-        }).select().single();
-        if (createError) throw createError;
-        this.currentProject = newProject;
+    const projectMap = new Map();
+    (ownedProjects || []).forEach(project => {
+      projectMap.set(project.id, { ...project, accessType: 'owner', role: 'owner' });
+    });
+    (memberRows || []).forEach(row => {
+      if (row.projects && !projectMap.has(row.projects.id)) {
+        projectMap.set(row.projects.id, { ...row.projects, accessType: 'shared', role: row.role || 'editor' });
       }
-    }
+    });
+    this.availableProjects = Array.from(projectMap.values());
+    return this.availableProjects;
+  },
+
+  async switchProject(projectId) {
+    const projects = this.availableProjects.length ? this.availableProjects : await this.loadAccessibleProjects();
+    const nextProject = projects.find(project => project.id === projectId);
+    if (!nextProject) throw new Error('没有权限打开这个项目');
+    this.currentProject = nextProject;
+    localStorage.setItem(`deco_current_project_id_${this.currentUser.id}`, nextProject.id);
     await this.loadProjectMembers();
     updateProjectName();
     await this.loadAllData();
+    this.initRealtime();
   },
 
   async loadProjectMembers() {
@@ -1158,6 +1188,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const overlay = document.getElementById('modalOverlay');
     const content = document.getElementById('modalContent');
     const userName = App.currentUser?.profile?.name || App.currentUser?.email?.split('@')[0] || '用户';
+    await App.loadAccessibleProjects();
     await App.loadProjectMembers();
     const isProjectOwner = App.currentProject?.owner_id === App.currentUser?.id;
     
@@ -1205,10 +1236,23 @@ window.addEventListener('DOMContentLoaded', () => {
         <button class="modal-close" onclick="closeModal()">×</button>
       </div>
       <div class="modal-body">
+        <!-- 当前项目 -->
+        <div style="margin-bottom:20px">
+          <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">当前项目</label>
+          <select class="app-input" id="settingCurrentProject">
+            ${(App.availableProjects || []).map(project => {
+              const tag = project.accessType === 'shared' ? '共享' : '我的';
+              return `<option value="${project.id}" ${project.id === App.currentProject?.id ? 'selected' : ''}>${escapeHtml(project.name || '未命名项目')} · ${tag}</option>`;
+            }).join('')}
+          </select>
+          <div style="font-size:0.75rem;color:var(--ink-light);margin-top:4px">如果对方已经有一个空项目，可以在这里切到你共享给他的项目。</div>
+        </div>
+
         <!-- 项目名称 -->
         <div style="margin-bottom:20px">
           <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px;font-weight:600">小家名称</label>
-          <input type="text" class="app-input" id="settingProjectName" value="${App.currentProject?.name || App.config.projectName || '我们的家'}" placeholder="给我们的家起个名字">
+          <input type="text" class="app-input" id="settingProjectName" value="${App.currentProject?.name || App.config.projectName || '我们的家'}" placeholder="给我们的家起个名字" ${isProjectOwner ? '' : 'disabled'}>
+          ${isProjectOwner ? '' : '<div style="font-size:0.75rem;color:var(--ink-light);margin-top:4px">共享成员不能改项目名称。</div>'}
         </div>
         
         <!-- 当前操作人 -->
@@ -1320,6 +1364,14 @@ window.addEventListener('DOMContentLoaded', () => {
     overlay.classList.add('show');
 
     document.getElementById('btnSaveSettings').addEventListener('click', async () => {
+      const selectedProjectId = document.getElementById('settingCurrentProject')?.value;
+      if (selectedProjectId && selectedProjectId !== App.currentProject?.id) {
+        await App.switchProject(selectedProjectId);
+        closeModal();
+        App.showToast('已切换项目', 'success');
+        return;
+      }
+
       // 收集用户数据
       const nameInputs = document.querySelectorAll('.settings-name-input');
       const avatarSelects = document.querySelectorAll('.settings-avatar-select');
@@ -1340,7 +1392,7 @@ window.addEventListener('DOMContentLoaded', () => {
       // 项目名称
       const newName = document.getElementById('settingProjectName').value || '我们的家';
       App.config.projectName = newName;
-      if (App.currentProject) {
+      if (App.currentProject && App.currentProject.owner_id === App.currentUser.id) {
         await App.update('projects', App.currentProject.id, { name: newName });
         App.currentProject.name = newName;
       }

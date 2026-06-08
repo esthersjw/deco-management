@@ -265,6 +265,7 @@ function showBoardStorageWarning(message) {
   let groups = [];
   let imageArchive = [];
   let deletedCardIds = new Set();
+  let archiveFilter = '全部';
   let groupIdCounter = 0;
   const mindmapNodes = new Map();
 
@@ -307,6 +308,7 @@ function showBoardStorageWarning(message) {
   let suppressSave = false;
 
   const DEFAULT_FONT = "-apple-system,BlinkMacSystemFont,'Noto Sans SC',sans-serif";
+  const ARCHIVE_TAGS = ['厨房', '餐厅', '客厅', '卧室', '卫生间', '阳台', '玄关', '书房', '软装', '材料'];
   const ALIGN_SNAP_THRESHOLD = 8;
   let alignGuides = [];
 
@@ -496,10 +498,15 @@ function showBoardStorageWarning(message) {
     .board-archive-panel { width:min(880px,92vw); max-height:82vh; overflow:hidden; background:#fefcf6; border:2px dashed var(--board-toolbar-border); border-radius:16px; box-shadow:0 18px 60px rgba(43,127,216,.18); display:flex; flex-direction:column; }
     .board-archive-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--board-toolbar-border); }
     .board-archive-title { font-family:'Noto Serif SC',serif; font-weight:700; color:var(--board-accent); }
-    .board-archive-grid { padding:16px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+    .board-archive-filters { padding:10px 16px; display:flex; flex-wrap:wrap; gap:8px; border-bottom:1px solid var(--board-toolbar-border); }
+    .board-tag-chip { border:1px solid var(--board-toolbar-border); background:#fff; color:var(--board-text-sub); border-radius:999px; height:28px; padding:0 10px; cursor:pointer; font-size:12px; }
+    .board-tag-chip.active { background:var(--board-accent); color:#fff; border-color:var(--board-accent); }
+    .board-archive-grid { padding:16px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:12px; }
     .board-archive-item { background:#fff; border:1px solid var(--board-toolbar-border); border-radius:12px; overflow:hidden; box-shadow:var(--board-card-shadow); }
     .board-archive-item img { width:100%; height:110px; object-fit:cover; display:block; background:#f6f3e8; }
-    .board-archive-meta { padding:8px; font-size:12px; color:var(--board-text-sub); }
+    .board-archive-meta { padding:8px; font-size:12px; color:var(--board-text-sub); display:flex; flex-direction:column; gap:6px; }
+    .board-archive-input { width:100%; height:30px; border:1px solid var(--board-toolbar-border); border-radius:8px; padding:0 8px; background:#fff; color:var(--board-text); font-size:12px; }
+    .board-archive-tags { display:flex; flex-wrap:wrap; gap:4px; }
     .board-archive-actions { padding:0 8px 8px; display:flex; gap:6px; }
     .board-archive-empty { padding:42px; text-align:center; color:var(--board-text-muted); grid-column:1/-1; }
 
@@ -1384,12 +1391,35 @@ function showBoardStorageWarning(message) {
       id: 'archive_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
       imgData: card.imgData,
       content: card.content || '',
+      title: card.content || '未命名素材',
+      tags: [],
       imgNatW: card.imgNatW || null,
       imgNatH: card.imgNatH || null,
       w: card.w || 280,
       h: card.h || 200,
       archivedAt: new Date().toISOString()
     });
+  }
+
+  function normalizeArchiveItems() {
+    imageArchive = (imageArchive || []).map(item => ({
+      ...item,
+      title: item.title || item.content || '未命名素材',
+      content: item.content || item.title || '',
+      tags: Array.isArray(item.tags) ? item.tags : []
+    }));
+  }
+
+  function updateArchiveItem(itemId, patch) {
+    const item = imageArchive.find(x => x.id === itemId);
+    if (!item) return;
+    Object.assign(item, patch, { updatedAt: new Date().toISOString() });
+    if (patch.title !== undefined) item.content = patch.title;
+    persistNow();
+  }
+
+  function parseTags(value) {
+    return [...new Set((value || '').split(/[，,\s]+/).map(t => t.trim()).filter(Boolean))];
   }
 
   function restoreArchiveItem(itemId) {
@@ -1420,25 +1450,55 @@ function showBoardStorageWarning(message) {
 
   function openArchiveModal() {
     closeArchiveModal();
+    normalizeArchiveItems();
     const modal = document.createElement('div');
     modal.className = 'board-archive-modal show';
     modal.id = 'boardArchiveModal';
-    const itemsHtml = imageArchive.length ? imageArchive.map(item => `
-      <div class="board-archive-item">
+    const allTags = ['全部', ...new Set([...ARCHIVE_TAGS, ...imageArchive.flatMap(item => item.tags || [])])];
+    const visibleItems = archiveFilter === '全部' ? imageArchive : imageArchive.filter(item => (item.tags || []).includes(archiveFilter));
+    const filtersHtml = allTags.map(tag => `<button class="board-tag-chip ${tag === archiveFilter ? 'active' : ''}" data-filter-tag="${escHtml(tag)}">${escHtml(tag)}</button>`).join('');
+    const itemsHtml = visibleItems.length ? visibleItems.map(item => `
+      <div class="board-archive-item" data-archive-id="${item.id}">
         <img src="${item.imgData}" alt="">
-        <div class="board-archive-meta">${escHtml(item.content || '未命名素材')}<br><span style="color:var(--board-text-muted)">${new Date(item.archivedAt || Date.now()).toLocaleString('zh-CN')}</span></div>
+        <div class="board-archive-meta">
+          <input class="board-archive-input" data-archive-title="${item.id}" value="${escHtml(item.title || item.content || '未命名素材')}" placeholder="素材名称">
+          <input class="board-archive-input" data-archive-tags="${item.id}" value="${escHtml((item.tags || []).join('，'))}" placeholder="标签：厨房，餐厅">
+          <div class="board-archive-tags">${ARCHIVE_TAGS.map(tag => `<button class="board-tag-chip ${(item.tags || []).includes(tag) ? 'active' : ''}" data-quick-tag="${escHtml(tag)}" type="button">${escHtml(tag)}</button>`).join('')}</div>
+          <span style="color:var(--board-text-muted)">${new Date(item.archivedAt || Date.now()).toLocaleString('zh-CN')}</span>
+        </div>
         <div class="board-archive-actions"><button class="board-tb-btn" data-restore-id="${item.id}" style="height:28px;font-size:12px;padding:0 8px">放回画布</button></div>
-      </div>`).join('') : '<div class="board-archive-empty">还没有回收的图片。删掉图片卡片后，它会出现在这里。</div>';
+      </div>`).join('') : '<div class="board-archive-empty">这个筛选下没有图片。删掉图片卡片后，它会出现在这里。</div>';
     modal.innerHTML = `
       <div class="board-archive-panel">
         <div class="board-archive-head"><div class="board-archive-title">🗂️ 素材库 / 回收站</div><button class="board-tb-btn" id="boardArchiveClose">关闭</button></div>
+        <div class="board-archive-filters">${filtersHtml}</div>
         <div class="board-archive-grid">${itemsHtml}</div>
       </div>`;
     document.body.appendChild(modal);
     modal.addEventListener('click', (e) => {
       if (e.target === modal || e.target.id === 'boardArchiveClose') closeArchiveModal();
+      const filterBtn = e.target.closest('[data-filter-tag]');
+      if (filterBtn) { archiveFilter = filterBtn.dataset.filterTag; openArchiveModal(); return; }
+      const quickTagBtn = e.target.closest('[data-quick-tag]');
+      if (quickTagBtn) {
+        const itemEl = quickTagBtn.closest('[data-archive-id]');
+        const item = imageArchive.find(x => x.id === itemEl?.dataset.archiveId);
+        if (item) {
+          const tags = new Set(item.tags || []);
+          tags.has(quickTagBtn.dataset.quickTag) ? tags.delete(quickTagBtn.dataset.quickTag) : tags.add(quickTagBtn.dataset.quickTag);
+          updateArchiveItem(item.id, { tags: Array.from(tags) });
+          openArchiveModal();
+        }
+        return;
+      }
       const restoreBtn = e.target.closest('[data-restore-id]');
       if (restoreBtn) restoreArchiveItem(restoreBtn.dataset.restoreId);
+    });
+    modal.addEventListener('change', (e) => {
+      const titleInput = e.target.closest('[data-archive-title]');
+      if (titleInput) updateArchiveItem(titleInput.dataset.archiveTitle, { title: titleInput.value.trim() || '未命名素材' });
+      const tagInput = e.target.closest('[data-archive-tags]');
+      if (tagInput) updateArchiveItem(tagInput.dataset.archiveTags, { tags: parseTags(tagInput.value) });
     });
   }
 
@@ -2968,6 +3028,7 @@ function showBoardStorageWarning(message) {
       cards.clear();
       mindmapNodes.clear();
       imageArchive = Array.isArray(data.imageArchive) ? data.imageArchive : [];
+      normalizeArchiveItems();
       deletedCardIds = new Set(Array.isArray(data.deletedCardIds) ? data.deletedCardIds : []);
 
       (data.cards || []).filter(d => !deletedCardIds.has(d.id)).forEach(d => {

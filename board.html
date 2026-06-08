@@ -264,6 +264,7 @@ function showBoardStorageWarning(message) {
   let drawIdCounter = 0;
   let groups = [];
   let imageArchive = [];
+  let deletedCardIds = new Set();
   let groupIdCounter = 0;
   const mindmapNodes = new Map();
 
@@ -1374,7 +1375,9 @@ function showBoardStorageWarning(message) {
   }
 
   function archiveImageCard(card) {
-    if (!card || card.type !== 'image' || !card.imgData) return;
+    if (!card) return;
+    deletedCardIds.add(card.id);
+    if (card.type !== 'image' || !card.imgData) return;
     const already = imageArchive.some(item => item.imgData === card.imgData && item.content === card.content);
     if (already) return;
     imageArchive.unshift({
@@ -2919,6 +2922,7 @@ function showBoardStorageWarning(message) {
       drawStrokes: drawStrokes.map(s => ({ ...s })),
       groups: groups.map(g => ({ ...g })),
       imageArchive: imageArchive.map(item => ({ ...item })),
+      deletedCardIds: Array.from(deletedCardIds),
       mindmapNodes: Object.fromEntries(mindmapNodes),
       cardIdCounter, connIdCounter, drawIdCounter, groupIdCounter, maxZ
     };
@@ -2964,8 +2968,9 @@ function showBoardStorageWarning(message) {
       cards.clear();
       mindmapNodes.clear();
       imageArchive = Array.isArray(data.imageArchive) ? data.imageArchive : [];
+      deletedCardIds = new Set(Array.isArray(data.deletedCardIds) ? data.deletedCardIds : []);
 
-      (data.cards || []).forEach(d => {
+      (data.cards || []).filter(d => !deletedCardIds.has(d.id)).forEach(d => {
         if (d.imgData === '[IMG_TOO_LARGE]') d.imgData = '';
         if (d.fontFamily === 'sans-serif') d.fontFamily = DEFAULT_FONT;
         if (d.fontFamily === 'serif') d.fontFamily = "Georgia,serif";

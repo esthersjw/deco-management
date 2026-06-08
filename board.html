@@ -883,7 +883,7 @@ function showBoardStorageWarning(message) {
       cards.forEach((_, id) => removeCardDOM(id));
       cards.clear(); connections = []; drawStrokes = []; groups = [];
       updateConnections(); renderDrawStrokes(); renderGroups();
-      deselectAll(); scheduleSave();
+      deselectAll(); persistNow();
     });
 
     // Mindmap float bar
@@ -1129,6 +1129,7 @@ function showBoardStorageWarning(message) {
     pushUndo({ type: 'deletestroke', strokeId: stroke.id, strokeData: { ...stroke } });
     if (selectedStrokeId === strokeId) selectedStrokeId = null;
     renderDrawStrokes();
+    persistNow();
   }
 
   // ============ TRANSFORM ============
@@ -1770,7 +1771,7 @@ function showBoardStorageWarning(message) {
         pushUndo({ type: 'disconnect', connId: conn.id, from: conn.from, to: conn.to, fromAnchor: conn.fromAnchor, toAnchor: conn.toAnchor, style: conn.style });
         connections = connections.filter(c => c.id !== connId);
         if (selectedConnId === connId) selectedConnId = null;
-        updateConnections(); scheduleSave();
+        updateConnections(); persistNow();
       } else if (action === 'connStyle') {
         const oldStyle = conn.style;
         conn.style = item.dataset.style;
@@ -1790,7 +1791,7 @@ function showBoardStorageWarning(message) {
       connections = connections.filter(c => c.from !== cardId && c.to !== cardId);
       pushUndo({ type: 'delete', cardId, data: { ...d }, conns: relConns.map(c => ({ ...c })) });
       removeCardDOM(cardId); cards.delete(cardId);
-      updateConnections(); renderGroups(); scheduleSave();
+      updateConnections(); renderGroups(); persistNow();
     } else if (action === 'toggleLock') {
       d.locked = !d.locked;
       syncCardStyle(cardId);
@@ -2705,7 +2706,7 @@ function showBoardStorageWarning(message) {
           pushUndo({ type: 'disconnect', connId: conn.id, from: conn.from, to: conn.to, fromAnchor: conn.fromAnchor, toAnchor: conn.toAnchor, style: conn.style });
           connections = connections.filter(c => c.id !== selectedConnId);
           selectedConnId = null;
-          updateConnections(); scheduleSave();
+          updateConnections(); persistNow();
         }
         return;
       }
@@ -2720,7 +2721,7 @@ function showBoardStorageWarning(message) {
           removeCardDOM(id); cards.delete(id);
         });
         if (items.length) pushUndo({ type: 'batch', items });
-        clearMultiSelection(); updateConnections();
+        clearMultiSelection(); updateConnections(); renderGroups(); persistNow();
         return;
       }
       if (selectedCardId) {
@@ -2730,7 +2731,7 @@ function showBoardStorageWarning(message) {
           connections = connections.filter(c => c.from !== selectedCardId && c.to !== selectedCardId);
           pushUndo({ type: 'delete', cardId: selectedCardId, data: { ...d }, conns: relConns.map(c => ({ ...c })) });
           removeCardDOM(selectedCardId); cards.delete(selectedCardId);
-          updateConnections(); renderGroups(); scheduleSave();
+          updateConnections(); renderGroups(); persistNow();
         }
         return;
       }
@@ -2837,6 +2838,15 @@ function showBoardStorageWarning(message) {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(saveBoardData, 300);
   }
+
+  function persistNow() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    saveBoardData();
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (saveTimer) persistNow();
+  });
 
   function saveBoardData() {
     if (suppressSave) return;

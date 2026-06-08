@@ -263,6 +263,7 @@ function showBoardStorageWarning(message) {
   let drawStrokes = [];
   let drawIdCounter = 0;
   let groups = [];
+  let imageArchive = [];
   let groupIdCounter = 0;
   const mindmapNodes = new Map();
 
@@ -489,6 +490,18 @@ function showBoardStorageWarning(message) {
 
     .board-group-rect { position:absolute; border:2px dashed rgba(43,127,216,0.25); border-radius:12px; background:rgba(43,127,216,0.03); pointer-events:none; z-index:0; }
 
+    .board-archive-modal { position:fixed; inset:0; background:rgba(42,42,42,.28); display:none; align-items:center; justify-content:center; z-index:5000; }
+    .board-archive-modal.show { display:flex; }
+    .board-archive-panel { width:min(880px,92vw); max-height:82vh; overflow:hidden; background:#fefcf6; border:2px dashed var(--board-toolbar-border); border-radius:16px; box-shadow:0 18px 60px rgba(43,127,216,.18); display:flex; flex-direction:column; }
+    .board-archive-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--board-toolbar-border); }
+    .board-archive-title { font-family:'Noto Serif SC',serif; font-weight:700; color:var(--board-accent); }
+    .board-archive-grid { padding:16px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+    .board-archive-item { background:#fff; border:1px solid var(--board-toolbar-border); border-radius:12px; overflow:hidden; box-shadow:var(--board-card-shadow); }
+    .board-archive-item img { width:100%; height:110px; object-fit:cover; display:block; background:#f6f3e8; }
+    .board-archive-meta { padding:8px; font-size:12px; color:var(--board-text-sub); }
+    .board-archive-actions { padding:0 8px 8px; display:flex; gap:6px; }
+    .board-archive-empty { padding:42px; text-align:center; color:var(--board-text-muted); grid-column:1/-1; }
+
     .board-mm-float-bar { position:absolute; bottom:60px; left:50%; transform:translateX(-50%); display:none; align-items:center; gap:6px; background:var(--board-toolbar-bg); border:2px dashed var(--board-toolbar-border); border-radius:10px; padding:6px 12px; z-index:1001; box-shadow:0 4px 16px rgba(43,127,216,0.10); }
     .board-mm-float-bar.show { display:flex; }
 
@@ -561,6 +574,9 @@ function showBoardStorageWarning(message) {
         <input type="text" id="boardSearchInput" placeholder="搜索卡片 (/)">
       </div>
       <div class="board-tb-sep"></div>
+      <button class="board-tb-btn" id="boardBtnArchive" title="素材库 / 回收站">
+        🗂️ 素材库
+      </button>
       <button class="board-tb-btn" id="boardBtnExportPng" title="导出PNG (⌘E)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         导出
@@ -868,6 +884,9 @@ function showBoardStorageWarning(message) {
     }
 
     // Export
+    const btnArchive = document.getElementById('boardBtnArchive');
+    if (btnArchive) btnArchive.addEventListener('click', openArchiveModal);
+
     const btnExportPng = document.getElementById('boardBtnExportPng');
     if (btnExportPng) btnExportPng.addEventListener('click', exportPNG);
 
@@ -880,6 +899,7 @@ function showBoardStorageWarning(message) {
       connections.forEach(c => items.push({ type: 'disconnect', connId: c.id, from: c.from, to: c.to, fromAnchor: c.fromAnchor, toAnchor: c.toAnchor, style: c.style }));
       cards.forEach((d, id) => items.push({ type: 'delete', cardId: id, data: { ...d }, conns: [] }));
       if (items.length) pushUndo({ type: 'batch', items });
+      cards.forEach(d => archiveImageCard(d));
       cards.forEach((_, id) => removeCardDOM(id));
       cards.clear(); connections = []; drawStrokes = []; groups = [];
       updateConnections(); renderDrawStrokes(); renderGroups();
@@ -1353,6 +1373,72 @@ function showBoardStorageWarning(message) {
     multiSelectedIds.delete(id);
   }
 
+  function archiveImageCard(card) {
+    if (!card || card.type !== 'image' || !card.imgData) return;
+    const already = imageArchive.some(item => item.imgData === card.imgData && item.content === card.content);
+    if (already) return;
+    imageArchive.unshift({
+      id: 'archive_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+      imgData: card.imgData,
+      content: card.content || '',
+      imgNatW: card.imgNatW || null,
+      imgNatH: card.imgNatH || null,
+      w: card.w || 280,
+      h: card.h || 200,
+      archivedAt: new Date().toISOString()
+    });
+  }
+
+  function restoreArchiveItem(itemId) {
+    const item = imageArchive.find(x => x.id === itemId);
+    if (!item) return;
+    const r = area?.getBoundingClientRect();
+    const cx = r ? (-panX + r.width / 2) / scale - 140 : 120;
+    const cy = r ? (-panY + r.height / 2) / scale - 100 : 120;
+    const id = createCardData('image', cx, cy, {
+      imgData: item.imgData,
+      content: item.content || '',
+      imgNatW: item.imgNatW,
+      imgNatH: item.imgNatH,
+      w: item.w || 280,
+      h: item.h || 200
+    });
+    renderCard(id);
+    pushUndo({ type: 'create', cardId: id, data: { ...cards.get(id) } });
+    selectCard(id);
+    persistNow();
+    closeArchiveModal();
+    showToast('已放回情绪板');
+  }
+
+  function closeArchiveModal() {
+    document.getElementById('boardArchiveModal')?.remove();
+  }
+
+  function openArchiveModal() {
+    closeArchiveModal();
+    const modal = document.createElement('div');
+    modal.className = 'board-archive-modal show';
+    modal.id = 'boardArchiveModal';
+    const itemsHtml = imageArchive.length ? imageArchive.map(item => `
+      <div class="board-archive-item">
+        <img src="${item.imgData}" alt="">
+        <div class="board-archive-meta">${escHtml(item.content || '未命名素材')}<br><span style="color:var(--board-text-muted)">${new Date(item.archivedAt || Date.now()).toLocaleString('zh-CN')}</span></div>
+        <div class="board-archive-actions"><button class="board-tb-btn" data-restore-id="${item.id}" style="height:28px;font-size:12px;padding:0 8px">放回画布</button></div>
+      </div>`).join('') : '<div class="board-archive-empty">还没有回收的图片。删掉图片卡片后，它会出现在这里。</div>';
+    modal.innerHTML = `
+      <div class="board-archive-panel">
+        <div class="board-archive-head"><div class="board-archive-title">🗂️ 素材库 / 回收站</div><button class="board-tb-btn" id="boardArchiveClose">关闭</button></div>
+        <div class="board-archive-grid">${itemsHtml}</div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal || e.target.id === 'boardArchiveClose') closeArchiveModal();
+      const restoreBtn = e.target.closest('[data-restore-id]');
+      if (restoreBtn) restoreArchiveItem(restoreBtn.dataset.restoreId);
+    });
+  }
+
   // ============ ANCHOR POINTS ============
   function getAnchorPos(cardId, anchor) {
     const d = cards.get(cardId), el = document.getElementById(cardId);
@@ -1790,6 +1876,7 @@ function showBoardStorageWarning(message) {
       const relConns = connections.filter(c => c.from === cardId || c.to === cardId);
       connections = connections.filter(c => c.from !== cardId && c.to !== cardId);
       pushUndo({ type: 'delete', cardId, data: { ...d }, conns: relConns.map(c => ({ ...c })) });
+      archiveImageCard(d);
       removeCardDOM(cardId); cards.delete(cardId);
       updateConnections(); renderGroups(); persistNow();
     } else if (action === 'toggleLock') {
@@ -2718,6 +2805,7 @@ function showBoardStorageWarning(message) {
           const relConns = connections.filter(c => c.from === id || c.to === id);
           connections = connections.filter(c => c.from !== id && c.to !== id);
           items.push({ type: 'delete', cardId: id, data: { ...d }, conns: relConns.map(c => ({ ...c })) });
+          archiveImageCard(d);
           removeCardDOM(id); cards.delete(id);
         });
         if (items.length) pushUndo({ type: 'batch', items });
@@ -2730,6 +2818,7 @@ function showBoardStorageWarning(message) {
           const relConns = connections.filter(c => c.from === selectedCardId || c.to === selectedCardId);
           connections = connections.filter(c => c.from !== selectedCardId && c.to !== selectedCardId);
           pushUndo({ type: 'delete', cardId: selectedCardId, data: { ...d }, conns: relConns.map(c => ({ ...c })) });
+          archiveImageCard(d);
           removeCardDOM(selectedCardId); cards.delete(selectedCardId);
           updateConnections(); renderGroups(); persistNow();
         }
@@ -2829,6 +2918,7 @@ function showBoardStorageWarning(message) {
       connections: connections.map(c => ({ ...c })),
       drawStrokes: drawStrokes.map(s => ({ ...s })),
       groups: groups.map(g => ({ ...g })),
+      imageArchive: imageArchive.map(item => ({ ...item })),
       mindmapNodes: Object.fromEntries(mindmapNodes),
       cardIdCounter, connIdCounter, drawIdCounter, groupIdCounter, maxZ
     };
@@ -2873,6 +2963,7 @@ function showBoardStorageWarning(message) {
 
       cards.clear();
       mindmapNodes.clear();
+      imageArchive = Array.isArray(data.imageArchive) ? data.imageArchive : [];
 
       (data.cards || []).forEach(d => {
         if (d.imgData === '[IMG_TOO_LARGE]') d.imgData = '';

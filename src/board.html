@@ -95,6 +95,11 @@ const BoardStorage = {
       || null;
   },
 
+  getLocalData() {
+    const raw = localStorage.getItem(this.localKey()) || localStorage.getItem('装修指挥官_board');
+    return raw ? JSON.parse(raw) : null;
+  },
+
   async getData() {
     try {
       if (this.client && this.currentProject) {
@@ -107,12 +112,10 @@ const BoardStorage = {
         if (error) throw error;
         if (data?.data) return data.data;
       }
-      const raw = localStorage.getItem(this.localKey());
-      return raw ? JSON.parse(raw) : null;
+      return this.getLocalData();
     } catch (e) {
       console.warn('Failed to load board data:', e);
-      const raw = localStorage.getItem(this.localKey());
-      return raw ? JSON.parse(raw) : null;
+      return this.getLocalData();
     }
   },
 

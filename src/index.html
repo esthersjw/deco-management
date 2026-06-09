@@ -1545,7 +1545,7 @@ window.addEventListener('DOMContentLoaded', () => {
     return Math.round((db - da) / (1000 * 60 * 60 * 24));
   }
   function go(moduleId) { App.switchModule(moduleId); }
-  function photoUrl(doc) { return doc.url || doc.fileUrl || doc.publicUrl || doc.path || ''; }
+  function photoUrl(doc) { return doc.url || doc.fileUrl || doc.publicUrl || doc.path || doc.fileName || ''; }
   function normalizePhaseName(name) { return String(name || '').replace(/[\s·・,，/／｜|_-]/g, ''); }
   function phaseMatches(displayName, phase) {
     const normalized = normalizePhaseName(phase?.name);
@@ -1607,7 +1607,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const matPending = matItems.filter(m => m.status === '待选购').length;
     const matOrdered = matItems.filter(m => m.status === '已下单').length;
 
-    const photos = (docs.documents || []).filter(d => d.type && d.type.startsWith('image/')).slice().sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0));
+    const photos = (progress.photos || []).slice().sort((a, b) => new Date(b.date || b.uploadedAt || 0) - new Date(a.date || a.uploadedAt || 0));
     const commCount = (comm.records || []).length;
     const recentPayments = (budget.payments || []).slice().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 2);
 
@@ -1669,12 +1669,12 @@ window.addEventListener('DOMContentLoaded', () => {
     const recent = state.photos.slice(0, 3);
     const photosHtml = recent.length ? recent.map(d => {
       const url = photoUrl(d);
-      return `<div class="dash-photo" title="${escapeHtml(d.name || '照片')}" onclick="event.stopPropagation();MODULES.dashboard.go('documents')">${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(d.name || '照片')}">` : '📷'}</div>`;
-    }).join('') : '<div class="dash-empty dash-full">暂无照片</div>';
-    return `<div class="dash-card dash-pad dash-card-clickable" onclick="MODULES.dashboard.go('documents')">
+      return `<div class="dash-photo" title="${escapeHtml(d.name || d.fileName || '照片')}" onclick="event.stopPropagation();MODULES.dashboard.go('progress')">${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(d.name || d.fileName || '照片')}">` : '📷'}</div>`;
+    }).join('') : '<div class="dash-empty dash-full">暂无进度照片</div>';
+    return `<div class="dash-card dash-pad dash-card-clickable" onclick="MODULES.dashboard.go('progress')">
       <div class="dash-title">📷 最新照片</div>
       <div class="dash-photos">${photosHtml}</div>
-      <p class="dash-sub" style="margin-top:10px">${recent.length} 张 · 来自文档库图片</p>
+      <p class="dash-sub" style="margin-top:10px">${recent.length} 张 · 来自进度照片墙</p>
     </div>`;
   }
 
@@ -1780,7 +1780,6 @@ window.addEventListener('DOMContentLoaded', () => {
         <div class="dash-card dash-pad dash-full dash-card-clickable" onclick="MODULES.dashboard.go('progress')"><div class="dash-title">📅 装修进度</div>${buildPhaseList(state)}</div>
         ${buildBudgetCard(state)}
         ${buildPhotosCard(state)}
-        ${buildRecentActivity(state)}
       </div>
     </div>`;
   }

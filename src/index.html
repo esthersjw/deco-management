@@ -1429,6 +1429,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   let data = null;
   let styleInjected = false;
+  let moodboardThumbs = [];
+  let moodboardLoadedProjectId = null;
   const PHASE_ORDER = ['设计', '拆除', '水电', '泥瓦', '木工', '油漆', '定制', '安装', '家具'];
   const PHASE_ALIASES = {
     '设计': ['设计', '设计规划', '规划设计', '方案设计'],
@@ -1463,6 +1465,14 @@ window.addEventListener('DOMContentLoaded', () => {
       .dash-ledger { display: grid; gap: 10px; margin-top: 14px; }
       .dash-ledger-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px dashed rgba(26,26,46,.09); font-size: .84rem; color: var(--ink-light); }
       .dash-ledger-row b { color: var(--ink); font-weight: 900; }
+      .dash-judge-list { display: grid; gap: 10px; margin-top: 16px; }
+      .dash-judge-item { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 12px; background: var(--cream-deep); cursor: pointer; }
+      .dash-judge-icon { width: 28px; height: 28px; border-radius: 10px; display: grid; place-items: center; background: rgba(43,127,216,.09); }
+      .dash-judge-title { font-size: .84rem; font-weight: 900; color: var(--ink); line-height: 1.35; }
+      .dash-judge-meta { font-size: .72rem; color: var(--ink-faint); margin-top: 2px; }
+      .dash-mood-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+      .dash-mood-thumb { aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: rgba(43,127,216,.07); border: 1px solid rgba(43,127,216,.13); display: grid; place-items: center; color: var(--blue); font-size: 1.2rem; }
+      .dash-mood-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .dash-stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
       .dash-number-card { min-height: 126px; padding: 22px 18px; cursor: pointer; transition: transform .18s, box-shadow .18s, border-color .18s; }
       .dash-number-card:hover, .dash-card-clickable:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(26,26,46,.08); border-color: rgba(43,127,216,.22); }
@@ -1545,6 +1555,7 @@ window.addEventListener('DOMContentLoaded', () => {
     return Math.round((db - da) / (1000 * 60 * 60 * 24));
   }
   function go(moduleId) { App.switchModule(moduleId); }
+  function goMoodboard() { window.location.href = 'board.html'; }
   function photoUrl(doc) { return doc.url || doc.fileUrl || doc.publicUrl || doc.path || doc.fileName || ''; }
   function normalizePhaseName(name) { return String(name || '').replace(/[\s·・,，/／｜|_-]/g, ''); }
   function phaseMatches(displayName, phase) {
@@ -1757,23 +1768,49 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnCopyReport').addEventListener('click', () => navigator.clipboard.writeText(md).then(() => App.showToast('周报已复制到剪贴板', 'success')).catch(() => App.showToast('复制失败，请手动复制', 'error')));
   }
 
+  function buildTodayJudgment(state) {
+    const items = [];
+    state.allTodos.slice(0, 3).forEach(todo => {
+      items.push({ icon: todo.overdue ? '🔴' : '✅', title: todo.content || '未命名待办', meta: `${todo.recordTitle || '沟通待办'} · 截止 ${formatDate(todo.deadline)}`, module: 'communications' });
+    });
+    if (state.matPending > 0) items.push({ icon: '🧱', title: `${state.matPending} 项材料待选购`, meta: '先处理会卡工期的主材', module: 'materials' });
+    if (state.overBudgetCount > 0) items.push({ icon: '💰', title: `${state.overBudgetCount} 个预算项目超支`, meta: '去预算里确认是否要调整', module: 'budget' });
+    if (!items.length) items.push({ icon: '🧭', title: `${state.currentPhaseName}阶段进行中`, meta: '今天没有高风险，检查阶段节点即可', module: 'progress' });
+    return `<div class="dash-card dash-pad-lg dash-tape"><span class="dash-badge dash-badge-yellow">今日判断</span><div class="dash-judge-list">${items.slice(0, 4).map(item => `<div class="dash-judge-item" onclick="MODULES.dashboard.go('${item.module}')"><div class="dash-judge-icon">${item.icon}</div><div><div class="dash-judge-title">${escapeHtml(item.title)}</div><div class="dash-judge-meta">${escapeHtml(item.meta)}</div></div></div>`).join('')}</div></div>`;
+  }
+
+  function buildMoodboardCard() {
+    const thumbs = moodboardThumbs.slice(0, 6);
+    const body = thumbs.length ? `<div class="dash-mood-grid">${thumbs.map(item => `<div class="dash-mood-thumb" title="${escapeHtml(item.title || '情绪板图片')}">${item.url ? `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.title || '情绪板图片')}">` : '🖼️'}</div>`).join('')}</div>` : '<div class="dash-empty" style="margin-top:14px">暂无情绪板图片</div>';
+    return `<div class="dash-card dash-pad dash-card-clickable" onclick="MODULES.dashboard.goMoodboard()"><div class="dash-title">🎨 情绪板缩略图</div><p class="dash-sub" style="margin-top:4px">来自情绪板画布</p>${body}</div>`;
+  }
+
+  async function loadMoodboardThumbs() {
+    if (!App.supabase || !App.currentProject?.id || moodboardLoadedProjectId === App.currentProject.id) return;
+    moodboardLoadedProjectId = App.currentProject.id;
+    try {
+      const { data: row, error } = await App.supabase.from('module_data').select('data').eq('project_id', App.currentProject.id).eq('module_key', 'board').maybeSingle();
+      if (error) throw error;
+      const boardData = row?.data || {};
+      const cards = (boardData.cards || []).filter(card => card.type === 'image' && card.imgData && !(boardData.deletedCardIds || []).includes(card.id));
+      const archived = (boardData.imageArchive || []).filter(item => item.imgData);
+      moodboardThumbs = [...cards, ...archived].slice(-12).reverse().map(item => ({ url: item.imgData, title: item.title || item.content || '情绪板图片' }));
+      if (App.currentModule === 'dashboard') render();
+    } catch (e) {
+      console.warn('Failed to load moodboard thumbs:', e);
+    }
+  }
+
   function render() {
     const container = document.getElementById('dashboard-content');
     if (!container) return;
     injectStyles();
     const state = collectDashboardState();
+    loadMoodboardThumbs();
     container.innerHTML = `<div class="dash-board">
       <aside class="dash-side">
-        <div class="dash-card dash-pad-lg dash-tape dash-card-clickable" onclick="MODULES.dashboard.go('budget')">
-          <span class="dash-badge dash-badge-yellow">今日判断</span>
-          <div class="dash-big">${state.usage}%</div>
-          <p class="dash-sub">总预算使用率 · 已支出 ${formatCurrency(state.totalSpent)}</p>
-          <div class="dash-ledger">
-            <div class="dash-ledger-row"><span>当前阶段</span><b class="dash-blue">${escapeHtml(state.currentPhaseName)}</b></div>
-            <div class="dash-ledger-row"><span>材料清单</span><b>${state.matTotal} 项</b></div>
-            <div class="dash-ledger-row"><span>风险</span><b class="${state.overBudgetCount || state.overdueTodos || state.lagDays > 0 ? 'dash-red' : 'dash-blue'}">${state.overBudgetCount || state.overdueTodos || state.lagDays > 0 ? `${state.overBudgetCount} 项超支 / ${state.overdueTodos} 项逾期` : '暂无高风险'}</b></div>
-          </div>
-        </div>
+        ${buildTodayJudgment(state)}
+        ${buildMoodboardCard()}
       </aside>
       <div class="dash-right">
         ${buildStatCards(state)}
@@ -1796,7 +1833,8 @@ window.addEventListener('DOMContentLoaded', () => {
     onShow() { this.render(); },
     onHide() {},
     setData(d) { data = d; },
-    go
+    go,
+    goMoodboard
   });
 })();
 

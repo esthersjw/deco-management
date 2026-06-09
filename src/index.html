@@ -3191,14 +3191,15 @@ window.addEventListener('DOMContentLoaded', () => {
   'use strict';
 
   const PHASE_DEFS = [
-    { id: 'phase_design', name: '设计规划', type: 'planning', tasks: ['整理居住需求和预算红线', '确认平面方案', '确认施工图/柜体图', '确认主材预选清单'], checks: ['平面方案确认', '效果图确认', '施工图确认', '主材预算上限确认'] },
-    { id: 'phase_demo', name: '拆除', type: 'construction', tasks: ['确认保护范围', '拆除前拍照留底', '确认垃圾清运方式'], checks: ['保护到位', '拆除边界正确', '现场清运完成'] },
-    { id: 'phase_water', name: '水电', type: 'construction', tasks: ['确认开关插座点位', '确认厨卫电器尺寸', '水电放样拍照', '保存隐蔽工程照片'], checks: ['水压测试', '电路回路确认', '强弱电间距确认', '隐蔽工程验收'] },
-    { id: 'phase_tile', name: '泥瓦', type: 'construction', tasks: ['确认瓷砖到货', '确认铺贴方式', '安排闭水测试'], checks: ['防水验收', '闭水测试', '瓷砖空鼓检查', '坡度检查'] },
-    { id: 'phase_wood', name: '木工', type: 'construction', tasks: ['确认吊顶尺寸', '确认柜体复尺', '确认门洞尺寸'], checks: ['基层检查', '收口检查', '柜体尺寸复核'] },
-    { id: 'phase_paint', name: '油漆', type: 'construction', tasks: ['确认墙面颜色', '确认腻子/底漆节点', '保护已安装材料'], checks: ['墙面平整度', '阴阳角检查', '色差检查'] },
-    { id: 'phase_install', name: '安装', type: 'construction', tasks: ['安排主材安装', '确认五金灯具', '整理缺件清单'], checks: ['灯具通电', '洁具试水', '柜门调平', '全屋收口'] },
-    { id: 'phase_soft', name: '软装入住', type: 'movein', tasks: ['家具进场', '开荒保洁', '甲醛检测', '入住物品清单'], checks: ['保洁验收', '家具尺寸确认', '空气检测确认'] }
+    { id: 'phase_design', name: '设计规划', type: 'planning', goal: '把方案、预算边界和风格方向定下来，为施工交底做准备。', tasks: ['整理居住需求和预算红线', '确认平面方案', '确认施工图/柜体图', '确认主材预选清单'], checks: ['平面方案确认', '效果图确认', '施工图确认', '主材预算上限确认'], milestones: ['设计师出平面方案', '约工长现场交底', '确认初版报价'], blocker: '主材范围和施工图不定，后面水电定位和报价都会被拖。' },
+    { id: 'phase_demo', name: '拆除', type: 'construction', goal: '保护该保护的，拆掉该拆的，给后续施工腾出干净现场。', tasks: ['确认保护范围', '拆除前拍照留底', '确认垃圾清运方式'], checks: ['保护到位', '拆除边界正确', '现场清运完成'], milestones: ['工人进场交底', '正式拆除', '垃圾清运完成'], blocker: '拆除边界不清楚，容易误拆或影响后续水电。' },
+    { id: 'phase_water', name: '水电', type: 'construction', goal: '把开关、插座、给排水和隐蔽工程一次确认清楚。', tasks: ['确认开关插座点位', '确认厨卫电器尺寸', '水电放样拍照', '保存隐蔽工程照片'], checks: ['水压测试', '电路回路确认', '强弱电间距确认', '隐蔽工程验收'], milestones: ['水电定位交底', '水电施工', '隐蔽工程验收'], blocker: '电器尺寸和点位不确认，会直接影响水电定位。' },
+    { id: 'phase_tile', name: '泥瓦', type: 'construction', goal: '完成防水、找平和瓷砖铺贴，控制空鼓和坡度问题。', tasks: ['确认瓷砖到货', '确认铺贴方式', '安排闭水测试'], checks: ['防水验收', '闭水测试', '瓷砖空鼓检查', '坡度检查'], milestones: ['瓷砖到货', '闭水测试', '泥瓦验收'], blocker: '瓷砖不到货或防水不过，会卡泥瓦和后续安装。' },
+    { id: 'phase_wood', name: '木工', type: 'construction', goal: '处理吊顶、基层和现场木作尺寸，为后续定制安装做准备。', tasks: ['确认吊顶尺寸', '确认柜体复尺', '确认门洞尺寸'], checks: ['基层检查', '收口检查', '柜体尺寸复核'], milestones: ['木工进场', '柜体复尺', '基层验收'], blocker: '尺寸不复核，定制柜和门后面容易翻车。' },
+    { id: 'phase_paint', name: '油漆', type: 'construction', goal: '把墙面基层、颜色和收口处理好，避免后期返工。', tasks: ['确认墙面颜色', '确认腻子/底漆节点', '保护已安装材料'], checks: ['墙面平整度', '阴阳角检查', '色差检查'], milestones: ['墙面基层处理', '面漆施工', '墙面验收'], blocker: '颜色和基层问题不确认，后面安装完再改会很麻烦。' },
+    { id: 'phase_custom', name: '定制', type: 'construction', goal: '确认柜体、门板、五金和安装时间，避免长周期材料卡进度。', tasks: ['确认柜体复尺', '确认门板和拉手', '确认生产周期', '预约安装时间'], checks: ['尺寸复核', '板材五金确认', '安装排期确认'], milestones: ['柜体复尺', '定制下单', '预约安装'], blocker: '定制不提前下单，后面安装和入住都会被拖。' },
+    { id: 'phase_install', name: '安装', type: 'construction', goal: '集中安装灯具、洁具、开关面板和各类主材，处理缺件补件。', tasks: ['安排主材安装', '确认五金灯具', '整理缺件清单'], checks: ['灯具通电', '洁具试水', '柜门调平', '全屋收口'], milestones: ['主材到货', '集中安装', '安装验收'], blocker: '缺件清单不及时补，会把收尾拖成无底洞。' },
+    { id: 'phase_furniture', name: '家具', type: 'movein', goal: '完成家具进场、保洁、空气检测和入住准备。', tasks: ['家具进场', '开荒保洁', '甲醛检测', '入住物品清单'], checks: ['保洁验收', '家具尺寸确认', '空气检测确认'], milestones: ['家具送装', '开荒保洁', '入住检查'], blocker: '家具尺寸和送装时间不确认，入住节奏会乱。' }
   ];
   const PHASE_NAMES = PHASE_DEFS.map(p => p.name);
   const STATUS_LIST = ['未开始', '进行中', '已完成', '滞后'];
@@ -3230,6 +3231,9 @@ window.addEventListener('DOMContentLoaded', () => {
       order: idx + 1,
       plannedStart: raw.plannedStart || '', plannedEnd: raw.plannedEnd || '', actualStart: raw.actualStart || '', actualEnd: raw.actualEnd || '',
       status: raw.status || '未开始', progress: Number(raw.progress) || 0, note: raw.note || '',
+      goal: raw.goal || def.goal || '', blocker: raw.blocker || def.blocker || '',
+      milestones: Array.isArray(raw.milestones) && raw.milestones.length ? raw.milestones : (def.milestones || []),
+      keyDates: Array.isArray(raw.keyDates) ? raw.keyDates : [],
       tasks: Array.isArray(raw.tasks) && raw.tasks.length ? raw.tasks : checklistFrom(def.tasks, def.id + '_task'),
       checks: Array.isArray(raw.checks) && raw.checks.length ? raw.checks : checklistFrom(def.checks, def.id + '_check'),
       payments: Array.isArray(raw.payments) ? raw.payments : []
@@ -3238,7 +3242,7 @@ window.addEventListener('DOMContentLoaded', () => {
   function ensureDefaultPhases() {
     const existing = data.phases || [];
     data.phases = PHASE_DEFS.map((def, idx) => {
-      const old = existing.find(p => p.id === def.id || p.name === def.name || (p.order === idx + 1 && p.name !== '设计规划')) || {};
+      const old = existing.find(p => p.id === def.id || p.name === def.name) || {};
       return normalizePhase({ ...old, id: def.id, name: def.name }, idx);
     });
     if (!data.currentPhaseId || !data.phases.some(p => p.id === data.currentPhaseId)) {
@@ -3252,20 +3256,36 @@ window.addEventListener('DOMContentLoaded', () => {
   function isLag(phase) { if (!phase.plannedEnd) return false; const today = getToday(); return (!!phase.actualEnd && phase.actualEnd > phase.plannedEnd) || (!phase.actualEnd && phase.status !== '已完成' && today > phase.plannedEnd); }
   function completion(list) { const arr = list || []; return { done: arr.filter(x => x.done).length, total: arr.length }; }
   function phasePhotos(phase) { return (data.photos || []).filter(p => p.tags?.phase === phase.name); }
-  function materialMatchesPhase(m, phase) { return m.phaseId === phase.id || m.phase === phase.name || m.stage === phase.name || (m.note || '').includes(phase.name); }
-  function budgetMatchesPhase(item, phase) { return item.phaseId === phase.id || item.phase === phase.name || (item.name || '').includes(phase.name) || (item.note || '').includes(phase.name); }
+  function phaseIncludes(value, phase) { const text = String(value || ''); return text.includes(phase.name) || text.includes(phase.id); }
+  function materialMatchesPhase(m, phase) { return m.phaseId === phase.id || m.phase === phase.name || m.stage === phase.name || phaseIncludes(m.note, phase) || phaseIncludes(m.name, phase); }
+  function budgetMatchesPhase(item, phase) { return item.phaseId === phase.id || item.phase === phase.name || phaseIncludes(item.name, phase) || phaseIncludes(item.note, phase); }
+  function docMatchesPhase(doc, phase) { return doc.phaseId === phase.id || doc.phase === phase.name || doc.stage === phase.name || phaseIncludes(doc.title || doc.name || doc.fileName, phase) || phaseIncludes(doc.note || doc.description || doc.category, phase); }
+  function commMatchesPhase(record, phase) { return record.phaseId === phase.id || record.phase === phase.name || record.stage === phase.name || phaseIncludes(record.title, phase) || phaseIncludes(record.content || record.summary || record.note, phase); }
   function getPhaseSignals(phase) {
     const mat = App.getData('materials') || { items: [] };
     const budget = App.getData('budget') || { items: [], payments: [] };
+    const docs = App.getData('documents') || { documents: [] };
+    const comm = App.getData('communications') || { records: [] };
     const materials = (mat.items || []).filter(m => materialMatchesPhase(m, phase));
     const budgetItems = (budget.items || []).filter(i => budgetMatchesPhase(i, phase));
     const payments = (budget.payments || []).filter(p => {
       const item = (budget.items || []).find(i => i.id === p.itemId);
       return p.phaseId === phase.id || p.phase === phase.name || (item && budgetMatchesPhase(item, phase));
     });
+    const documents = (docs.documents || []).filter(d => docMatchesPhase(d, phase));
+    const communications = (comm.records || []).filter(r => commMatchesPhase(r, phase));
+    const todos = communications.flatMap(r => (r.todos || []).filter(t => !t.done && !t.completed).map(t => ({ ...t, recordTitle: r.title || '沟通记录' })));
     const planned = budgetItems.reduce((s, i) => s + (Number(i.budget) || 0), 0);
     const actual = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0) || budgetItems.reduce((s, i) => s + (Number(i.actual) || 0), 0);
-    return { materials, budgetItems, payments, planned, actual, photos: phasePhotos(phase) };
+    return { materials, budgetItems, payments, planned, actual, photos: phasePhotos(phase), documents, communications, todos };
+  }
+  function phaseKeyDates(phase) {
+    const dates = [];
+    if (phase.plannedStart) dates.push({ date: phase.plannedStart, title: '计划开始', note: '阶段正式启动' });
+    (phase.keyDates || []).forEach(item => dates.push(item));
+    (phase.milestones || []).slice(0, 3).forEach((title, idx) => dates.push({ date: idx === 0 ? (phase.plannedStart || '') : '', title, note: idx === 0 ? '优先安排' : '待排期' }));
+    if (phase.plannedEnd) dates.push({ date: phase.plannedEnd, title: '计划完成', note: '检查阶段产出和卡点' });
+    return dates.slice(0, 4);
   }
   function renderTabs() {
     return `<div class="tab-bar"><button class="tab ${currentTab === 'phases' ? 'active' : ''}" data-tab="phases">🧭 阶段节点中心</button><button class="tab ${currentTab === 'photos' ? 'active' : ''}" data-tab="photos">📷 照片墙 (${data.photos?.length || 0})</button></div>`;
@@ -3275,18 +3295,41 @@ window.addEventListener('DOMContentLoaded', () => {
     const c = completion(list);
     return `<div style="background:var(--cream-deep);border-radius:10px;padding:10px"><div class="flex-between" style="margin-bottom:8px"><strong style="font-size:.82rem">${label}</strong><span class="text-xs text-faint">${c.done}/${c.total}</span></div>${list.slice(0,4).map(item => `<label style="display:flex;gap:7px;align-items:flex-start;font-size:.78rem;margin:6px 0;line-height:1.35"><input type="checkbox" ${item.done ? 'checked' : ''} onchange="MODULES.progress.toggleNode('${phase.id}','${key}','${item.id}')"><span style="${item.done ? 'text-decoration:line-through;color:var(--ink-faint)' : ''}">${escapeHtml(item.title)}</span></label>`).join('')}${list.length > 4 ? `<div class="text-xs text-faint">还有 ${list.length - 4} 项，点编辑查看</div>` : ''}</div>`;
   }
+  function renderKeyDates(phase) {
+    const dates = phaseKeyDates(phase);
+    if (!dates.length) return '<div class="text-xs text-faint">还没有关键时间点，先排交底、进场、验收这类节点。</div>';
+    return `<div style="display:grid;gap:9px">${dates.map(item => `<div style="display:grid;grid-template-columns:64px 1fr;gap:10px;padding:9px 0;border-bottom:1px dashed var(--border-light)"><strong style="font-family:Fraunces,serif;color:var(--blue);font-size:1.05rem">${escapeHtml(item.date ? item.date.slice(5) : '待排')}</strong><div><div style="font-weight:700;font-size:.84rem">${escapeHtml(item.title || '关键节点')}</div><div class="text-xs text-faint">${escapeHtml(item.note || '需要确认具体时间')}</div></div></div>`).join('')}</div>`;
+  }
+  function renderRecordLinks(signals) {
+    const items = [];
+    if (signals.documents.length) items.push(`📄 文档 ${signals.documents.length}`);
+    if (signals.communications.length) items.push(`💬 沟通 ${signals.communications.length}`);
+    if (signals.photos.length) items.push(`📷 照片 ${signals.photos.length}`);
+    if (signals.materials.length) items.push(`🧱 材料 ${signals.materials.length}`);
+    if (signals.budgetItems.length) items.push(`💰 预算 ${signals.budgetItems.length}`);
+    return items.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${items.map(x => `<span class="badge badge-gray" style="padding:7px 10px">${x}</span>`).join('')}</div>` : '<div class="text-xs text-faint">相关文档、沟通、照片和材料会在这里聚合；没有就不硬显示 0。</div>';
+  }
+  function renderPhotoStrip(signals) {
+    const photos = signals.photos.slice(0, 4);
+    if (!photos.length) return '<div class="text-xs text-faint">这个阶段还没有现场照片。</div>';
+    return `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${photos.map(ph => `<div style="aspect-ratio:1.25;border-radius:10px;background:var(--cream-deep);overflow:hidden">${ph.fileName ? `<img src="${escapeHtml(ph.fileName)}" alt="" style="width:100%;height:100%;object-fit:cover">` : '<div style="height:100%;display:grid;place-items:center;color:var(--ink-faint)">📷</div>'}</div>`).join('')}</div>`;
+  }
+  function phaseBlockers(phase, signals) {
+    const risk = [];
+    const pendingTasks = completion(phase.tasks).total - completion(phase.tasks).done;
+    if (pendingTasks > 0) risk.push(`${pendingTasks} 个待办还没完成`);
+    if (signals.todos.length) risk.push(`${signals.todos.length} 个沟通待办待处理`);
+    if (signals.materials.some(m => m.status === '待选购')) risk.push('有主材待选购');
+    if (signals.planned && signals.actual > signals.planned) risk.push('本阶段预算超支');
+    return risk.length ? risk.join(' · ') : (phase.blocker || '暂无明显卡点，按关键时间点推进。');
+  }
   function renderCommandPanel() {
     const phase = data.phases.find(p => p.id === data.currentPhaseId) || data.phases[0];
     if (!phase) return '';
     const signals = getPhaseSignals(phase);
     const task = completion(phase.tasks), check = completion(phase.checks);
     const checkTitle = phase.type === 'planning' ? '确认项' : '验收项';
-    const risk = [];
-    if (task.done < task.total) risk.push(`${task.total - task.done} 个待办未完成`);
-    if (check.done < check.total) risk.push(`${check.total - check.done} 个${checkTitle}未完成`);
-    if (signals.materials.filter(m => m.status === '待选购').length) risk.push('还有主材待选购');
-    if (signals.planned && signals.actual > signals.planned) risk.push('本阶段预算已超支');
-    return `<div class="app-card" style="padding:18px;margin-bottom:18px;border:1px solid rgba(43,127,216,.18);background:linear-gradient(135deg,rgba(43,127,216,.08),rgba(255,255,255,.85))"><div class="flex-between" style="align-items:flex-start;gap:14px"><div><div class="text-xs text-faint" style="margin-bottom:4px">当前作战阶段</div><h2 style="margin:0;font-size:1.35rem">${phase.order}. ${phase.name}</h2><div class="text-sm text-faint" style="margin-top:6px">${phase.type === 'planning' ? '先把方案、图纸、预算红线钉死，别把坑留给施工。' : '现场推进、验收、付款和材料都在这里对齐。'}</div></div><button class="btn btn-sm btn-primary" onclick="MODULES.progress.editPhase('${phase.id}')">编辑当前阶段</button></div><div class="grid-4" style="margin-top:16px"><div class="stat-card"><div class="stat-label">待办</div><div class="stat-value">${task.done}/${task.total}</div></div><div class="stat-card"><div class="stat-label">${checkTitle}</div><div class="stat-value">${check.done}/${check.total}</div></div><div class="stat-card"><div class="stat-label">阶段预算</div><div class="stat-value" style="font-size:1.1rem">${signals.planned ? money(signals.actual) : '未绑定'}</div><div class="stat-sub">${signals.planned ? '预算 ' + money(signals.planned) : '可在预算项备注阶段名'}</div></div><div class="stat-card"><div class="stat-label">材料/照片</div><div class="stat-value">${signals.materials.length}/${signals.photos.length}</div><div class="stat-sub">材料 / 照片</div></div></div>${risk.length ? `<div class="alert-banner alert-banner-warning" style="margin-top:14px">⚠️ ${risk.join(' · ')}</div>` : `<div class="alert-banner alert-banner-success" style="margin-top:14px">✅ 当前阶段没有明显阻塞</div>`}</div>`;
+    return `<div class="app-card" style="padding:20px;margin-bottom:18px;border:1px solid rgba(43,127,216,.18);background:linear-gradient(135deg,rgba(43,127,216,.07),rgba(255,253,248,.96))"><div class="flex-between" style="align-items:flex-start;gap:14px"><div><div class="text-xs text-faint" style="margin-bottom:4px">当前阶段 · 行动中心</div><h2 style="margin:0;font-size:1.35rem">${phase.order}. ${phase.name}</h2><div class="text-sm text-faint" style="margin-top:6px;max-width:760px">${escapeHtml(phase.goal || '')}</div></div><button class="btn btn-sm btn-primary" onclick="MODULES.progress.editPhase('${phase.id}')">编辑当前阶段</button></div><div class="grid-4" style="margin-top:16px"><div class="stat-card"><div class="stat-label">待办</div><div class="stat-value">${task.done}/${task.total}</div></div><div class="stat-card"><div class="stat-label">${checkTitle}</div><div class="stat-value">${check.done}/${check.total}</div></div><div class="stat-card"><div class="stat-label">关键时间</div><div class="stat-value">${phaseKeyDates(phase).length}</div><div class="stat-sub">交底 / 进场 / 验收</div></div><div class="stat-card"><div class="stat-label">相关记录</div><div class="stat-value">${signals.documents.length + signals.communications.length + signals.photos.length}</div><div class="stat-sub">文档 / 沟通 / 照片</div></div></div><div class="alert-banner ${phaseBlockers(phase, signals).includes('暂无') ? 'alert-banner-success' : 'alert-banner-warning'}" style="margin-top:14px">${phaseBlockers(phase, signals).includes('暂无') ? '✅' : '⚠️'} ${escapeHtml(phaseBlockers(phase, signals))}</div></div>`;
   }
   function renderPhaseCard(phase) {
     const isCurrent = phase.id === data.currentPhaseId;
@@ -3294,20 +3337,18 @@ window.addEventListener('DOMContentLoaded', () => {
     const cls = ['phase-card']; if (isCurrent) cls.push('active'); else if (phase.status === '已完成') cls.push('completed'); else if (lag) cls.push('lag');
     const statusBadge = phase.status === '已完成' ? '<span class="badge badge-green">✅ 已完成</span>' : phase.status === '进行中' ? '<span class="badge badge-blue">🔄 进行中</span>' : lag || phase.status === '滞后' ? '<span class="badge badge-red">⚠️ 滞后</span>' : '<span class="badge badge-gray">⏳ 未开始</span>';
     const signals = getPhaseSignals(phase);
-    const task = completion(phase.tasks), check = completion(phase.checks);
     const checkTitle = phase.type === 'planning' ? '确认' : '验收';
-    const matSummary = MATERIAL_STATUSES.map(s => { const n = signals.materials.filter(m => m.status === s).length; return n ? `<span class="badge badge-gray">${s} ${n}</span>` : ''; }).join('');
-    return `<div class="${cls.join(' ')}" data-phase-id="${phase.id}"><div class="flex-between" style="margin-bottom:10px"><div class="phase-name">${phase.order}. ${phase.name} ${isCurrent ? '<span class="badge badge-blue" style="margin-left:6px">当前</span>' : ''}</div>${statusBadge}</div><div class="phase-dates">计划: ${phase.plannedStart || phase.plannedEnd ? `${phase.plannedStart || '?'} - ${phase.plannedEnd || '进行中'}` : '未设定'}</div><div class="progress-bar" style="margin:10px 0"><div class="progress-bar-fill ${phase.progress >= 100 ? 'success' : lag ? 'danger' : ''}" style="width:${phase.progress}%"></div></div><div class="grid-2" style="gap:10px;margin:10px 0">${renderMiniChecklist(phase, 'tasks', '待办')}${renderMiniChecklist(phase, 'checks', checkTitle + '项')}</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0"><div class="text-xs" style="background:var(--cream-deep);padding:8px;border-radius:8px"><strong>预算</strong><br>${signals.planned ? `${money(signals.actual)} / ${money(signals.planned)}` : '未绑定'}</div><div class="text-xs" style="background:var(--cream-deep);padding:8px;border-radius:8px"><strong>材料</strong><br>${signals.materials.length} 项</div><div class="text-xs" style="background:var(--cream-deep);padding:8px;border-radius:8px"><strong>照片</strong><br>${signals.photos.length} 张</div></div>${matSummary ? `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">${matSummary}</div>` : ''}${phase.note ? `<div class="text-xs" style="color:var(--ink-light);background:var(--cream-deep);padding:7px;border-radius:8px;margin-bottom:10px">${escapeHtml(phase.note)}</div>` : ''}<div class="flex" style="gap:6px;flex-wrap:wrap"><button class="btn btn-sm btn-secondary" onclick="MODULES.progress.editPhase('${phase.id}')">✏️ 编辑</button>${!isCurrent ? `<button class="btn btn-sm btn-primary" onclick="MODULES.progress.setCurrentPhase('${phase.id}')">设为当前</button>` : ''}</div></div>`;
+    return `<div class="${cls.join(' ')}" data-phase-id="${phase.id}" style="padding:18px"><div class="flex-between" style="margin-bottom:10px"><div class="phase-name">${phase.order}. ${phase.name} ${isCurrent ? '<span class="badge badge-blue" style="margin-left:6px">当前</span>' : ''}</div>${statusBadge}</div><div class="text-sm text-faint" style="line-height:1.6;margin-bottom:10px">${escapeHtml(phase.goal || '')}</div><div class="progress-bar" style="margin:10px 0"><div class="progress-bar-fill ${phase.progress >= 100 ? 'success' : lag ? 'danger' : ''}" style="width:${phase.progress}%"></div></div><div style="display:grid;grid-template-columns:1.1fr .9fr;gap:12px;margin:12px 0"><div>${renderMiniChecklist(phase, 'tasks', '本阶段要做')}</div><div><div style="background:var(--cream-deep);border-radius:10px;padding:10px"><div class="flex-between" style="margin-bottom:8px"><strong style="font-size:.82rem">关键时间点</strong><span class="text-xs text-faint">${phase.plannedStart || phase.plannedEnd ? '已排期' : '待排期'}</span></div>${renderKeyDates(phase)}</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0"><div style="background:var(--cream-deep);border-radius:10px;padding:10px"><strong style="font-size:.82rem">相关记录</strong><div style="margin-top:8px">${renderRecordLinks(signals)}</div></div><div style="background:var(--cream-deep);border-radius:10px;padding:10px"><strong style="font-size:.82rem">现场照片</strong><div style="margin-top:8px">${renderPhotoStrip(signals)}</div></div></div><div class="alert-banner ${phaseBlockers(phase, signals).includes('暂无') ? 'alert-banner-success' : 'alert-banner-warning'}" style="margin:10px 0">${phaseBlockers(phase, signals).includes('暂无') ? '✅' : '⚠️'} ${escapeHtml(phaseBlockers(phase, signals))}</div>${phase.note ? `<div class="text-xs" style="color:var(--ink-light);background:var(--cream-deep);padding:7px;border-radius:8px;margin-bottom:10px">${escapeHtml(phase.note)}</div>` : ''}<div class="flex" style="gap:6px;flex-wrap:wrap"><button class="btn btn-sm btn-secondary" onclick="MODULES.progress.editPhase('${phase.id}')">✏️ 编辑</button>${!isCurrent ? `<button class="btn btn-sm btn-primary" onclick="MODULES.progress.setCurrentPhase('${phase.id}')">设为当前</button>` : ''}</div></div>`;
   }
-  function renderPhases() { ensureDefaultPhases(); return renderCommandPanel() + `<div class="timeline" style="margin-bottom:20px;flex-wrap:wrap">${data.phases.map((p, i) => `<div class="timeline-item"><div class="timeline-dot ${p.id === data.currentPhaseId ? 'active' : p.status === '已完成' ? 'completed' : isLag(p) ? 'lag' : ''}"></div>${i < data.phases.length - 1 ? `<div class="timeline-line ${p.status === '已完成' ? 'completed' : ''}"></div>` : ''}</div>`).join('')}</div><div class="grid-3" id="phaseGrid">${data.phases.map(renderPhaseCard).join('')}</div>`; }
+  function renderPhases() { ensureDefaultPhases(); return renderCommandPanel() + `<div class="timeline" style="margin-bottom:20px;flex-wrap:wrap">${data.phases.map((p, i) => `<div class="timeline-item"><div class="timeline-dot ${p.id === data.currentPhaseId ? 'active' : p.status === '已完成' ? 'completed' : isLag(p) ? 'lag' : ''}"></div>${i < data.phases.length - 1 ? `<div class="timeline-line ${p.status === '已完成' ? 'completed' : ''}"></div>` : ''}</div>`).join('')}</div><div id="phaseGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:16px">${data.phases.map(renderPhaseCard).join('')}</div>`; }
   function editPhase(phaseId) {
     const phase = data.phases.find(p => p.id === phaseId); if (!phase) return;
     const checkLabel = phase.type === 'planning' ? '确认项' : '验收项';
     const overlay = document.getElementById('modalOverlay'); const content = document.getElementById('modalContent');
-    content.innerHTML = `<div class="modal-header"><div class="modal-title">✏️ 编辑阶段 — ${phase.name}</div><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body" style="display:flex;flex-direction:column;gap:14px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">状态</label><select class="app-input app-select" id="editPhaseStatus">${STATUS_LIST.map(s => `<option value="${s}" ${phase.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">进度 (%)</label><input type="range" min="0" max="100" value="${phase.progress}" style="width:100%" id="editProgressRange" oninput="document.getElementById('editProgressVal').textContent=this.value+'%'"><div class="text-xs" id="editProgressVal">${phase.progress}%</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">计划开始</label><input type="date" class="app-input" id="editPlannedStart" value="${phase.plannedStart}"></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">计划结束</label><input type="date" class="app-input" id="editPlannedEnd" value="${phase.plannedEnd}"></div></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">待办（一行一项，前缀 [x] 表示完成）</label><textarea class="app-input app-textarea" id="editTasks" rows="5">${phase.tasks.map(t => `${t.done ? '[x] ' : ''}${t.title}`).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">${checkLabel}（一行一项，前缀 [x] 表示完成）</label><textarea class="app-input app-textarea" id="editChecks" rows="5">${phase.checks.map(t => `${t.done ? '[x] ' : ''}${t.title}`).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">备注</label><textarea class="app-input app-textarea" id="editPhaseNote" rows="3">${escapeHtml(phase.note)}</textarea></div></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">取消</button><button class="btn btn-primary" id="btnSavePhase">保存</button></div>`;
+    content.innerHTML = `<div class="modal-header"><div class="modal-title">✏️ 编辑阶段 — ${phase.name}</div><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body" style="display:flex;flex-direction:column;gap:14px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">状态</label><select class="app-input app-select" id="editPhaseStatus">${STATUS_LIST.map(s => `<option value="${s}" ${phase.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">进度 (%)</label><input type="range" min="0" max="100" value="${phase.progress}" style="width:100%" id="editProgressRange" oninput="document.getElementById('editProgressVal').textContent=this.value+'%'"><div class="text-xs" id="editProgressVal">${phase.progress}%</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">计划开始</label><input type="date" class="app-input" id="editPlannedStart" value="${phase.plannedStart}"></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">计划结束</label><input type="date" class="app-input" id="editPlannedEnd" value="${phase.plannedEnd}"></div></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">阶段目标</label><textarea class="app-input app-textarea" id="editPhaseGoal" rows="2">${escapeHtml(phase.goal || '')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">关键时间点（一行一项）</label><textarea class="app-input app-textarea" id="editMilestones" rows="3">${(phase.milestones || []).map(escapeHtml).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">待办（一行一项，前缀 [x] 表示完成）</label><textarea class="app-input app-textarea" id="editTasks" rows="5">${phase.tasks.map(t => `${t.done ? '[x] ' : ''}${t.title}`).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">${checkLabel}（一行一项，前缀 [x] 表示完成）</label><textarea class="app-input app-textarea" id="editChecks" rows="5">${phase.checks.map(t => `${t.done ? '[x] ' : ''}${t.title}`).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">备注</label><textarea class="app-input app-textarea" id="editPhaseNote" rows="3">${escapeHtml(phase.note)}</textarea></div></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">取消</button><button class="btn btn-primary" id="btnSavePhase">保存</button></div>`;
     overlay.classList.add('show');
     document.getElementById('btnSavePhase').addEventListener('click', () => {
-      phase.status = document.getElementById('editPhaseStatus').value; phase.progress = parseInt(document.getElementById('editProgressRange').value, 10); phase.plannedStart = document.getElementById('editPlannedStart').value; phase.plannedEnd = document.getElementById('editPlannedEnd').value; phase.note = document.getElementById('editPhaseNote').value;
+      phase.status = document.getElementById('editPhaseStatus').value; phase.progress = parseInt(document.getElementById('editProgressRange').value, 10); phase.plannedStart = document.getElementById('editPlannedStart').value; phase.plannedEnd = document.getElementById('editPlannedEnd').value; phase.goal = document.getElementById('editPhaseGoal').value; phase.milestones = String(document.getElementById('editMilestones').value || '').split('\n').map(x => x.trim()).filter(Boolean); phase.note = document.getElementById('editPhaseNote').value;
       phase.tasks = parseChecklist(document.getElementById('editTasks').value, phase.id + '_task'); phase.checks = parseChecklist(document.getElementById('editChecks').value, phase.id + '_check');
       if (phase.progress >= 100 && phase.status !== '已完成') phase.status = '已完成'; if (phase.status === '进行中') data.currentPhaseId = phase.id;
       save(); closeModal(); render(); App.showToast('阶段节点已更新', 'success');

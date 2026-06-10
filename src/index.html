@@ -329,11 +329,11 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
     <div id="loginForm">
       <div style="margin-bottom:16px">
         <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">邮箱</label>
-        <input type="email" class="app-input" id="loginEmail" placeholder="your@email.com">
+        <input type="email" class="app-input" id="loginEmail" placeholder="your@email.com" autocomplete="email">
       </div>
       <div style="margin-bottom:20px">
         <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">密码</label>
-        <input type="password" class="app-input" id="loginPassword" placeholder="输入密码">
+        <input type="password" class="app-input" id="loginPassword" placeholder="输入密码" autocomplete="current-password">
       </div>
       <button class="btn btn-primary w-full" id="btnLogin" style="justify-content:center;margin-bottom:12px;width:100%">登录</button>
       <p style="text-align:center;font-size:0.85rem;color:var(--ink-faint)">
@@ -343,15 +343,15 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
     <div id="registerForm" style="display:none">
       <div style="margin-bottom:16px">
         <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">邮箱</label>
-        <input type="email" class="app-input" id="registerEmail" placeholder="your@email.com">
+        <input type="email" class="app-input" id="registerEmail" placeholder="your@email.com" autocomplete="email">
       </div>
       <div style="margin-bottom:16px">
         <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">密码</label>
-        <input type="password" class="app-input" id="registerPassword" placeholder="至少6位密码">
+        <input type="password" class="app-input" id="registerPassword" placeholder="至少8位密码" autocomplete="new-password">
       </div>
       <div style="margin-bottom:20px">
         <label style="display:block;font-size:0.8rem;color:var(--ink-light);margin-bottom:6px">确认密码</label>
-        <input type="password" class="app-input" id="registerConfirmPassword" placeholder="再次输入密码">
+        <input type="password" class="app-input" id="registerConfirmPassword" placeholder="再次输入密码" autocomplete="new-password">
       </div>
       <button class="btn btn-primary w-full" id="btnRegister" style="justify-content:center;margin-bottom:12px;width:100%">注册</button>
       <p style="text-align:center;font-size:0.85rem;color:var(--ink-faint)">
@@ -748,13 +748,11 @@ window.App = {
     if (!normalizedEmail) throw new Error('请输入对方注册邮箱');
     if (normalizedEmail === (this.currentUser.email || '').toLowerCase()) throw new Error('不能邀请自己');
 
-    const { data: profile, error: profileError } = await this.supabase
-      .from('profiles')
-      .select('id, email, display_name')
-      .eq('email', normalizedEmail)
-      .maybeSingle();
+    const { data: profileRows, error: profileError } = await this.supabase
+      .rpc('find_profile_for_invite', { invitee_email: normalizedEmail });
     if (profileError) throw profileError;
-    if (!profile) throw new Error('没有找到这个邮箱对应的注册账号。让对方先注册并确认邮箱后再邀请。');
+    const profile = Array.isArray(profileRows) ? profileRows[0] : null;
+    if (!profile) throw new Error('暂时不能邀请这个邮箱。请确认对方已经注册并完成邮箱验证。');
 
     const { data, error } = await this.supabase
       .from('project_members')
@@ -993,12 +991,14 @@ window.App = {
           <div class="modal-title">确认</div>
           <button class="modal-close" onclick="closeModal()">×</button>
         </div>
-        <div class="modal-body">${msg}</div>
+        <div class="modal-body" id="confirmMessage"></div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="closeModal();window._confirmResult=false;">取消</button>
           <button class="btn btn-primary" onclick="closeModal();window._confirmResult=true;">确认</button>
         </div>
       `;
+      const messageEl = document.getElementById('confirmMessage');
+      if (messageEl) messageEl.textContent = String(msg || '');
       overlay.classList.add('show');
       window._confirmResult = null;
       const check = setInterval(() => {
@@ -1126,8 +1126,8 @@ function initAuthEvents() {
       showError('请填写邮箱和密码');
       return;
     }
-    if (password.length < 6) {
-      showError('密码至少6位');
+    if (password.length < 8) {
+      showError('密码至少8位');
       return;
     }
     if (password !== confirm) {
@@ -3413,7 +3413,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const phase = data.phases.find(p => p.id === phaseId); if (!phase) return;
     const checkLabel = phase.type === 'planning' ? '确认项' : '验收项';
     const overlay = document.getElementById('modalOverlay'); const content = document.getElementById('modalContent');
-    content.innerHTML = `<div class="modal-header"><div class="modal-title">✏️ 编辑阶段 — ${phase.name}</div><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body" style="display:flex;flex-direction:column;gap:14px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">状态</label><select class="app-input app-select" id="editPhaseStatus">${STATUS_LIST.map(s => `<option value="${s}" ${phase.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">进度 (%)</label><input type="range" min="0" max="100" value="${phase.progress}" style="width:100%" id="editProgressRange" oninput="document.getElementById('editProgressVal').textContent=this.value+'%'"><div class="text-xs" id="editProgressVal">${phase.progress}%</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">计划开始</label><input type="date" class="app-input" id="editPlannedStart" value="${phase.plannedStart}"></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">计划结束</label><input type="date" class="app-input" id="editPlannedEnd" value="${phase.plannedEnd}"></div></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">阶段目标</label><textarea class="app-input app-textarea" id="editPhaseGoal" rows="2">${escapeHtml(phase.goal || '')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">关键时间点（一行一项）</label><textarea class="app-input app-textarea" id="editMilestones" rows="3">${(phase.milestones || []).map(escapeHtml).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">待办（一行一项，前缀 [x] 表示完成）</label><textarea class="app-input app-textarea" id="editTasks" rows="5">${phase.tasks.map(t => `${t.done ? '[x] ' : ''}${t.title}`).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">${checkLabel}（一行一项，前缀 [x] 表示完成）</label><textarea class="app-input app-textarea" id="editChecks" rows="5">${phase.checks.map(t => `${t.done ? '[x] ' : ''}${t.title}`).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">备注</label><textarea class="app-input app-textarea" id="editPhaseNote" rows="3">${escapeHtml(phase.note)}</textarea></div></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">取消</button><button class="btn btn-primary" id="btnSavePhase">保存</button></div>`;
+    content.innerHTML = `<div class="modal-header"><div class="modal-title">✏️ 编辑阶段 — ${escapeHtml(phase.name)}</div><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body" style="display:flex;flex-direction:column;gap:14px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">状态</label><select class="app-input app-select" id="editPhaseStatus">${STATUS_LIST.map(s => `<option value="${s}" ${phase.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">进度 (%)</label><input type="range" min="0" max="100" value="${phase.progress}" style="width:100%" id="editProgressRange" oninput="document.getElementById('editProgressVal').textContent=this.value+'%'"><div class="text-xs" id="editProgressVal">${phase.progress}%</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">计划开始</label><input type="date" class="app-input" id="editPlannedStart" value="${phase.plannedStart}"></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">计划结束</label><input type="date" class="app-input" id="editPlannedEnd" value="${phase.plannedEnd}"></div></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">阶段目标</label><textarea class="app-input app-textarea" id="editPhaseGoal" rows="2">${escapeHtml(phase.goal || '')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">关键时间点（一行一项）</label><textarea class="app-input app-textarea" id="editMilestones" rows="3">${(phase.milestones || []).map(escapeHtml).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">待办（一行一项，前缀 [x] 表示完成）</label><textarea class="app-input app-textarea" id="editTasks" rows="5">${phase.tasks.map(t => `${t.done ? '[x] ' : ''}${escapeHtml(t.title)}`).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">${checkLabel}（一行一项，前缀 [x] 表示完成）</label><textarea class="app-input app-textarea" id="editChecks" rows="5">${phase.checks.map(t => `${t.done ? '[x] ' : ''}${escapeHtml(t.title)}`).join('\n')}</textarea></div><div><label style="display:block;font-size:.8rem;color:var(--ink-light);margin-bottom:6px">备注</label><textarea class="app-input app-textarea" id="editPhaseNote" rows="3">${escapeHtml(phase.note || '')}</textarea></div></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">取消</button><button class="btn btn-primary" id="btnSavePhase">保存</button></div>`;
     overlay.classList.add('show');
     document.getElementById('btnSavePhase').addEventListener('click', () => {
       phase.status = document.getElementById('editPhaseStatus').value; phase.progress = parseInt(document.getElementById('editProgressRange').value, 10); phase.plannedStart = document.getElementById('editPlannedStart').value; phase.plannedEnd = document.getElementById('editPlannedEnd').value; phase.goal = document.getElementById('editPhaseGoal').value; phase.milestones = String(document.getElementById('editMilestones').value || '').split('\n').map(x => x.trim()).filter(Boolean); phase.note = document.getElementById('editPhaseNote').value;

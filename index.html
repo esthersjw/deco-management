@@ -1605,10 +1605,13 @@ window.addEventListener('DOMContentLoaded', () => {
     const allTodos = [];
     (comm.records || []).forEach(r => {
       (r.todos || []).forEach(t => {
-        totalTodos++;
-        const overdue = t.status !== '已完成' && isOverdue(t.deadline);
-        if (overdue) overdueTodos++;
-        if (t.status !== '已完成') allTodos.push({ ...t, recordTitle: r.title, recordDate: r.date, overdue });
+        const done = t.status === '已完成' || t.done || t.completed;
+        const overdue = !done && isOverdue(t.deadline);
+        if (!done) {
+          totalTodos++;
+          if (overdue) overdueTodos++;
+          allTodos.push({ ...t, recordTitle: r.title, recordDate: r.date, overdue });
+        }
       });
     });
     allTodos.sort((a, b) => (b.overdue ? 1 : 0) - (a.overdue ? 1 : 0) || new Date(a.deadline || 0) - new Date(b.deadline || 0));
@@ -3263,6 +3266,8 @@ window.addEventListener('DOMContentLoaded', () => {
   function budgetMatchesPhase(item, phase) { return item.phaseId === phase.id || item.phase === phase.name || phaseIncludes(item.name, phase) || phaseIncludes(item.note, phase); }
   function docMatchesPhase(doc, phase) { return doc.phaseId === phase.id || doc.phase === phase.name || doc.stage === phase.name || phaseIncludes(doc.title || doc.name || doc.fileName, phase) || phaseIncludes(doc.note || doc.description || doc.category, phase); }
   function commMatchesPhase(record, phase) { return record.phaseId === phase.id || record.phase === phase.name || record.stage === phase.name || phaseIncludes(record.title, phase) || phaseIncludes(record.content || record.summary || record.note, phase); }
+  function isCommTodoDone(todo) { return todo?.status === '已完成' || todo?.done || todo?.completed; }
+  function phaseMatchesTodo(todo, phase) { return todo?.phaseId === phase.id || todo?.phase === phase.name || todo?.stage === phase.name || phaseIncludes(todo?.content, phase) || phaseIncludes(todo?.note, phase); }
   function getPhaseSignals(phase) {
     const mat = App.getData('materials') || { items: [] };
     const budget = App.getData('budget') || { items: [], payments: [] };
@@ -3275,8 +3280,8 @@ window.addEventListener('DOMContentLoaded', () => {
       return p.phaseId === phase.id || p.phase === phase.name || (item && budgetMatchesPhase(item, phase));
     });
     const documents = (docs.documents || []).filter(d => docMatchesPhase(d, phase));
-    const communications = (comm.records || []).filter(r => commMatchesPhase(r, phase));
-    const todos = communications.flatMap(r => (r.todos || []).filter(t => !t.done && !t.completed).map(t => ({ ...t, recordTitle: r.title || '沟通记录' })));
+    const communications = (comm.records || []).filter(r => commMatchesPhase(r, phase) || (r.todos || []).some(t => phaseMatchesTodo(t, phase)));
+    const todos = (comm.records || []).flatMap(r => (r.todos || []).filter(t => !isCommTodoDone(t) && (commMatchesPhase(r, phase) || phaseMatchesTodo(t, phase))).map(t => ({ ...t, recordTitle: r.title || '沟通记录' })));
     const planned = budgetItems.reduce((s, i) => s + (Number(i.budget) || 0), 0);
     const actual = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0) || budgetItems.reduce((s, i) => s + (Number(i.actual) || 0), 0);
     return { materials, budgetItems, payments, planned, actual, photos: phasePhotos(phase), documents, communications, todos };
@@ -3301,8 +3306,8 @@ window.addEventListener('DOMContentLoaded', () => {
   function renderKeyDates(phase) {
     const dates = phaseKeyDates(phase);
     if (!dates.length) return '<div class="text-xs text-faint">还没有关键时间点，点右上角添加。</div>';
-    const badgeClass = status => status === '已完成' ? 'badge-green' : status === '延期' ? 'badge-red' : status === '进行中' ? 'badge-blue' : 'badge-gray';
-    return `<div style="display:grid;gap:9px">${dates.map(item => `<div style="display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center;padding:9px 0;border-bottom:1px dashed var(--border-light)"><strong style="font-family:Fraunces,serif;color:var(--blue);font-size:1.05rem">${escapeHtml(item.date ? item.date.slice(5) : '待排')}</strong><div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="badge ${badgeClass(item.status)}">${escapeHtml(item.status || '待办')}</span>${item.status === '延期' && item.delayedUntil ? `<span class="badge badge-yellow">延到 ${escapeHtml(item.delayedUntil.slice(5))}</span>` : ''}<span style="font-weight:700;font-size:.84rem;${item.done ? 'text-decoration:line-through;color:var(--ink-faint)' : ''}">${escapeHtml(item.title || '关键节点')}</span></div>${item.note && item.note !== '待排期' ? `<div class="text-xs text-faint">${escapeHtml(item.note)}</div>` : ''}</div></div>`).join('')}</div>`;
+    const statusClass = status => status === '已完成' ? 'badge-green' : status === '延期' ? 'badge-red' : status === '进行中' ? 'badge-blue' : 'badge-gray';
+    return `<div style="display:grid;gap:8px">${dates.map(item => `<div style="display:grid;grid-template-columns:116px 104px 1fr;gap:8px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border-light)"><input type="date" class="app-input" style="padding:6px 8px;font-size:.82rem" value="${escapeHtml(item.date || '')}" onchange="MODULES.progress.updateKeyDate('${phase.id}','${item.id}','date',this.value)"><select class="app-input app-select badge ${statusClass(item.status)}" style="padding:6px 8px;font-size:.82rem;font-weight:700" onchange="MODULES.progress.updateKeyDate('${phase.id}','${item.id}','status',this.value)">${['待办','进行中','已完成','延期'].map(s => `<option value="${s}" ${item.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select><div><div style="font-weight:700;font-size:.9rem;line-height:1.35;${item.done ? 'text-decoration:line-through;color:var(--ink-faint)' : ''}">${escapeHtml(item.title || '关键节点')}</div>${item.status === '延期' ? `<div style="display:flex;gap:6px;align-items:center;margin-top:5px"><span class="text-xs text-faint">延到</span><input type="date" class="app-input" style="padding:5px 7px;font-size:.78rem;max-width:132px" value="${escapeHtml(item.delayedUntil || '')}" onchange="MODULES.progress.updateKeyDate('${phase.id}','${item.id}','delayedUntil',this.value)"></div>` : ''}${item.note && item.note !== '待排期' ? `<div class="text-xs text-faint" style="margin-top:4px">${escapeHtml(item.note)}</div>` : ''}</div></div>`).join('')}</div>`;
   }
   function renderTaskList(phase) {
     const list = phase.tasks || [];
@@ -3395,6 +3400,14 @@ window.addEventListener('DOMContentLoaded', () => {
   function editKeyDate(phaseId, keyDateId) { const phase = data.phases.find(p => p.id === phaseId); if (!phase) return; phase.keyDates = phaseKeyDates(phase); const item = phase.keyDates.find(k => k.id === keyDateId) || { id: generateId('kd'), date: '', title: '', note: '', status: '待办', delayedUntil: '', done: false }; openSimpleModal(keyDateId ? '编辑关键时间点' : '添加关键时间点', `<div style="display:grid;gap:12px"><input type="date" class="app-input" id="editKeyDateDate" value="${escapeHtml(item.date || '')}"><input class="app-input" id="editKeyDateTitle" value="${escapeHtml(item.title || '')}" placeholder="这一天要做什么"><select class="app-input app-select" id="editKeyDateStatus">${['待办','进行中','已完成','延期'].map(s => `<option value="${s}" ${item.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select><input type="date" class="app-input" id="editKeyDateDelayed" value="${escapeHtml(item.delayedUntil || '')}"><textarea class="app-input app-textarea" id="editKeyDateNote" rows="3" placeholder="备注，比如谁来、要准备什么">${escapeHtml(item.note || '')}</textarea></div>`, () => { item.date = document.getElementById('editKeyDateDate').value; item.title = document.getElementById('editKeyDateTitle').value.trim(); item.status = document.getElementById('editKeyDateStatus').value; item.delayedUntil = document.getElementById('editKeyDateDelayed').value; item.note = document.getElementById('editKeyDateNote').value.trim(); item.done = item.status === '已完成'; if (!item.title) return App.showToast('时间点事项不能为空', 'warning'); if (!keyDateId) phase.keyDates.push(item); save(); closeModal(); render(); App.showToast('关键时间点已更新', 'success'); }, keyDateId ? `<button class="btn btn-danger" onclick="MODULES.progress.deleteKeyDate('${phaseId}','${keyDateId}')">删除</button>` : ''); }
   function editKeyDates(phaseId) { const phase = data.phases.find(p => p.id === phaseId); if (!phase) return; phase.keyDates = phaseKeyDates(phase); const rows = phase.keyDates.map((item, idx) => `<div style="display:grid;grid-template-columns:120px 1fr 100px 120px;gap:8px;align-items:center"><input type="date" class="app-input" id="kdDate_${idx}" value="${escapeHtml(item.date || '')}"><input class="app-input" id="kdTitle_${idx}" value="${escapeHtml(item.title || '')}" placeholder="事项"><select class="app-input app-select" id="kdStatus_${idx}">${['待办','进行中','已完成','延期'].map(s => `<option value="${s}" ${item.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select><input type="date" class="app-input" id="kdDelay_${idx}" value="${escapeHtml(item.delayedUntil || '')}"><textarea class="app-input app-textarea" id="kdNote_${idx}" rows="1" style="grid-column:2 / 5" placeholder="备注">${escapeHtml(item.note || '')}</textarea></div>`).join(''); openSimpleModal('编辑关键时间点', `<div style="display:grid;gap:12px">${rows || '<div class="text-xs text-faint">还没有关键时间点，先点添加。</div>'}</div><div class="text-xs text-faint" style="margin-top:8px">状态可标记是否完成；如果延期，填“延到”的日期。</div>`, () => { phase.keyDates = phase.keyDates.map((item, idx) => { const status = document.getElementById(`kdStatus_${idx}`).value; return { ...item, date: document.getElementById(`kdDate_${idx}`).value, title: document.getElementById(`kdTitle_${idx}`).value.trim() || '关键节点', status, delayedUntil: document.getElementById(`kdDelay_${idx}`).value, note: document.getElementById(`kdNote_${idx}`).value.trim(), done: status === '已完成' }; }); save(); closeModal(); render(); App.showToast('关键时间点已更新', 'success'); }); }
   function deleteKeyDate(phaseId, keyDateId) { const phase = data.phases.find(p => p.id === phaseId); if (!phase) return; phase.keyDates = phaseKeyDates(phase).filter(k => k.id !== keyDateId); save(); closeModal(); render(); App.showToast('关键时间点已删除', 'success'); }
+  function updateKeyDate(phaseId, keyDateId, field, value) {
+    const phase = data.phases.find(p => p.id === phaseId); if (!phase) return;
+    phase.keyDates = phaseKeyDates(phase);
+    const item = phase.keyDates.find(k => k.id === keyDateId); if (!item) return;
+    item[field] = value;
+    if (field === 'status') item.done = value === '已完成';
+    save(); render();
+  }
   function parseChecklist(text, prefix) { return String(text || '').split('\n').map(x => x.trim()).filter(Boolean).map((line, idx) => { const done = /^\[x\]\s*/i.test(line); return { id: `${prefix}_${idx + 1}`, title: line.replace(/^\[[ x]\]\s*/i, ''), done }; }); }
   function toggleNode(phaseId, key, itemId) { const phase = data.phases.find(p => p.id === phaseId); const item = phase?.[key]?.find(x => x.id === itemId); if (!item) return; item.done = !item.done; save(); render(); }
   function viewPhase(phaseId) { viewingPhaseId = phaseId; render(); }
@@ -3424,7 +3437,7 @@ window.addEventListener('DOMContentLoaded', () => {
   function setPhotoView(view) { photoView = view; render(); }
   function setupDragDrop() { const zone = container(); if (!zone) return; zone.addEventListener('dragover', e => { if (currentTab !== 'photos') return; e.preventDefault(); const dz = document.getElementById('photoDropZone'); if (dz) dz.style.display = 'block'; }); zone.addEventListener('drop', e => { if (currentTab !== 'photos') return; e.preventDefault(); const dz = document.getElementById('photoDropZone'); if (dz) dz.style.display = 'none'; if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files); }); }
   function render() { const el = container(); if (!el) return; photoObjectURLs.forEach(url => URL.revokeObjectURL(url)); photoObjectURLs = []; ensureDefaultPhases(); el.innerHTML = renderTabs() + (currentTab === 'phases' ? renderPhases() : renderPhotos()); el.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { currentTab = tab.dataset.tab; render(); })); if (currentTab === 'photos') loadPhotoThumbnails(); }
-  const module = { name: '进度', icon: '📅', init() { const el = container(); if (el) el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">加载中...</div></div>'; setupDragDrop(); }, render, onShow() { const d = App.getData('progress'); if (d) data = d; ensureDefaultPhases(); if (!viewingPhaseId || !data.phases.some(p => p.id === viewingPhaseId)) viewingPhaseId = data.currentPhaseId; render(); }, onHide() { photoObjectURLs.forEach(url => URL.revokeObjectURL(url)); photoObjectURLs = []; }, getData() { return JSON.parse(JSON.stringify(data)); }, setData(d) { if (d) { data = d; ensureDefaultPhases(); } }, isDirty() { return false; }, editPhase, editGoal, editBlocker, addTask, editTask, editTasks, deleteTask, addKeyDate, editKeyDate, editKeyDates, deleteKeyDate, viewPhase, setPhaseStatus, setCurrentPhase, shiftPhase, toggleNode, handleFileSelect, viewPhoto, deletePhoto, setFilter, setPhotoView };
+  const module = { name: '进度', icon: '📅', init() { const el = container(); if (el) el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">加载中...</div></div>'; setupDragDrop(); }, render, onShow() { const d = App.getData('progress'); if (d) data = d; ensureDefaultPhases(); if (!viewingPhaseId || !data.phases.some(p => p.id === viewingPhaseId)) viewingPhaseId = data.currentPhaseId; render(); }, onHide() { photoObjectURLs.forEach(url => URL.revokeObjectURL(url)); photoObjectURLs = []; }, getData() { return JSON.parse(JSON.stringify(data)); }, setData(d) { if (d) { data = d; ensureDefaultPhases(); } }, isDirty() { return false; }, editPhase, editGoal, editBlocker, addTask, editTask, editTasks, deleteTask, addKeyDate, editKeyDate, editKeyDates, deleteKeyDate, updateKeyDate, viewPhase, setPhaseStatus, setCurrentPhase, shiftPhase, toggleNode, handleFileSelect, viewPhoto, deletePhoto, setFilter, setPhotoView };
   registerModule('progress', module);
 })();
 
@@ -3524,9 +3537,11 @@ window.addEventListener('DOMContentLoaded', () => {
       const authorName = author ? author.name : '未知';
       const authorAvatar = author ? author.avatar : '👤';
       const todos = rec.todos || [];
+      const pendingCount = todos.filter(t => getTodoStatus(t) !== '已完成').length;
+      const doneCount = todos.length - pendingCount;
       const overdueCount = todos.filter(t => getTodoStatus(t) === '逾期').length;
       const todoText = todos.length > 0
-        ? `待办 ${todos.length} 项${overdueCount > 0 ? `（<span style="color:var(--red)">${overdueCount} 逾期</span>）` : '（全部完成）'}`
+        ? (pendingCount > 0 ? `待办 ${pendingCount} 项${doneCount > 0 ? ` · 已完成 ${doneCount}` : ''}${overdueCount > 0 ? `（<span style="color:var(--red)">${overdueCount} 逾期</span>）` : ''}` : `待办 ${todos.length} 项（全部完成）`)
         : '';
 
       return `
@@ -3545,7 +3560,7 @@ window.addEventListener('DOMContentLoaded', () => {
             ${rec.participants && rec.participants.length ? '参与：' + escapeHtml(rec.participants.join('、')) : '无参与方'}
             ${rec.location ? ' | 📍 ' + escapeHtml(rec.location) : ''}
           </div>
-          ${todoText ? `<div class="comm-todos"><span class="badge ${overdueCount > 0 ? 'badge-red' : 'badge-green'}">${todoText}</span></div>` : ''}
+          ${todoText ? `<div class="comm-todos"><span class="badge ${overdueCount > 0 ? 'badge-red' : pendingCount > 0 ? 'badge-blue' : 'badge-green'}">${todoText}</span></div>` : ''}
         </div>
       `;
     }).join('');

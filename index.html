@@ -1611,14 +1611,14 @@ window.addEventListener('DOMContentLoaded', () => {
           totalTodos++;
           if (overdue) overdueTodos++;
           const linkedPhase = phases.find(p => p.id === (t.phaseId || r.phaseId));
-          allTodos.push({ ...t, sourceType: 'communication', title: t.content, phaseName: linkedPhase ? displayPhaseName(linkedPhase.name) : '', recordTitle: r.title, recordDate: r.date, overdue });
+          allTodos.push({ ...t, recordId: r.id, sourceType: 'communication', title: t.content, phaseName: linkedPhase ? displayPhaseName(linkedPhase.name) : '', recordTitle: r.title, recordDate: r.date, overdue });
         }
       });
     });
     (phases || []).forEach(phase => {
       (phase.tasks || []).filter(t => !t.done && !t.completed).forEach(t => {
         totalTodos++;
-        allTodos.push({ ...t, sourceType: 'progress', title: t.title, phaseName: displayPhaseName(phase.name), module: 'progress', overdue: false });
+        allTodos.push({ ...t, phaseId: phase.id, sourceType: 'progress', title: t.title, phaseName: displayPhaseName(phase.name), module: 'progress', overdue: false });
       });
     });
     allTodos.sort((a, b) => (b.overdue ? 1 : 0) - (a.overdue ? 1 : 0) || new Date(a.deadline || '2999-12-31') - new Date(b.deadline || '2999-12-31'));
@@ -1783,18 +1783,38 @@ window.addEventListener('DOMContentLoaded', () => {
     state.allTodos.slice(0, 3).forEach(todo => {
       const module = todo.sourceType === 'progress' ? 'progress' : 'communications';
       const meta = todo.sourceType === 'progress' ? `${todo.phaseName || '进度阶段'} · 本阶段要做` : `${todo.phaseName || todo.recordTitle || '沟通待办'}${todo.deadline ? ' · 截止 ' + formatDate(todo.deadline) : ''}`;
-      items.push({ icon: todo.overdue ? '🔴' : '☐', title: todo.title || todo.content || '未命名待办', meta, module });
+      items.push({ type: todo.sourceType, id: todo.id, phaseId: todo.phaseId || '', recordId: todo.recordId || '', title: todo.title || todo.content || '未命名待办', meta, module, actionable: todo.sourceType === 'progress' || todo.sourceType === 'communication' });
     });
     if (state.matPending > 0) items.push({ icon: '🧱', title: `${state.matPending} 项材料待选购`, meta: '先处理会卡工期的主材', module: 'materials' });
     if (state.overBudgetCount > 0) items.push({ icon: '💰', title: `${state.overBudgetCount} 个预算项目超支`, meta: '去预算里确认是否要调整', module: 'budget' });
     if (!items.length) items.push({ icon: '🧭', title: `${state.currentPhaseName}阶段进行中`, meta: '今天没有高风险，检查阶段节点即可', module: 'progress' });
-    return `<div class="dash-card dash-pad-lg dash-tape"><span class="dash-badge dash-badge-yellow">To Do</span><div class="dash-judge-list">${items.slice(0, 4).map(item => `<div class="dash-judge-item" onclick="MODULES.dashboard.go('${item.module}')"><div class="dash-judge-icon">${item.icon}</div><div><div class="dash-judge-title">${escapeHtml(item.title)}</div><div class="dash-judge-meta">${escapeHtml(item.meta)}</div></div></div>`).join('')}</div></div>`;
+    return `<div class="dash-card dash-pad-lg dash-tape"><span class="dash-badge dash-badge-yellow">To Do</span><div class="dash-judge-list">${items.slice(0, 4).map(item => item.actionable ? `<label class="dash-judge-item" style="grid-template-columns:auto 1fr;cursor:pointer" onclick="event.stopPropagation()"><input type="checkbox" style="width:18px;height:18px;margin-top:2px;accent-color:var(--blue)" onchange="MODULES.dashboard.toggleTodo('${item.type}','${item.id}','${item.phaseId}','${item.recordId}',this.checked)"><div><div class="dash-judge-title">${escapeHtml(item.title)}</div><div class="dash-judge-meta">${escapeHtml(item.meta)}</div></div></label>` : `<div class="dash-judge-item" onclick="MODULES.dashboard.go('${item.module}')"><div class="dash-judge-icon">${item.icon}</div><div><div class="dash-judge-title">${escapeHtml(item.title)}</div><div class="dash-judge-meta">${escapeHtml(item.meta)}</div></div></div>`).join('')}</div></div>`;
   }
 
   function buildMoodboardCard() {
     const thumbs = moodboardThumbs.slice(0, 6);
     const body = thumbs.length ? `<div class="dash-mood-grid">${thumbs.map(item => `<div class="dash-mood-thumb" title="${escapeHtml(item.title || '情绪板图片')}">${item.url ? `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.title || '情绪板图片')}">` : '🖼️'}</div>`).join('')}</div>` : '<div class="dash-empty" style="margin-top:14px">暂无情绪板图片</div>';
     return `<div class="dash-card dash-pad dash-card-clickable" onclick="MODULES.dashboard.goMoodboard()"><div class="dash-title">🎨 情绪板缩略图</div><p class="dash-sub" style="margin-top:4px">来自情绪板画布</p>${body}</div>`;
+  }
+
+  function toggleTodo(type, id, phaseId, recordId, checked) {
+    if (type === 'progress') {
+      const progress = App.getData('progress') || { phases: [] };
+      const phase = (progress.phases || []).find(p => p.id === phaseId);
+      const task = phase?.tasks?.find(t => t.id === id);
+      if (!task) return;
+      task.done = checked;
+      App.setData('progress', progress);
+    } else if (type === 'communication') {
+      const comm = App.getData('communications') || { records: [] };
+      const record = (comm.records || []).find(r => r.id === recordId);
+      const todo = record?.todos?.find(t => t.id === id);
+      if (!todo) return;
+      todo.status = checked ? '已完成' : '待办';
+      todo.completedAt = checked ? new Date().toISOString() : null;
+      App.setData('communications', comm);
+    }
+    render();
   }
 
   async function loadMoodboardThumbs() {
@@ -1846,7 +1866,8 @@ window.addEventListener('DOMContentLoaded', () => {
     onHide() {},
     setData(d) { data = d; },
     go,
-    goMoodboard
+    goMoodboard,
+    toggleTodo
   });
 })();
 
@@ -3316,7 +3337,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const dates = phaseKeyDates(phase);
     if (!dates.length) return '<div class="text-xs text-faint">还没有关键时间点，点右上角添加。</div>';
     const statusClass = status => status === '已完成' ? 'badge-green' : status === '延期' ? 'badge-red' : status === '进行中' ? 'badge-blue' : 'badge-gray';
-    return `<div style="display:grid;gap:8px">${dates.map(item => `<div style="display:grid;grid-template-columns:116px 104px 1fr;gap:8px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border-light)"><input type="date" class="app-input" style="padding:6px 8px;font-size:.82rem" value="${escapeHtml(item.date || '')}" onchange="MODULES.progress.updateKeyDate('${phase.id}','${item.id}','date',this.value)"><select class="app-input app-select badge ${statusClass(item.status)}" style="padding:6px 8px;font-size:.82rem;font-weight:700" onchange="MODULES.progress.updateKeyDate('${phase.id}','${item.id}','status',this.value)">${['待办','进行中','已完成','延期'].map(s => `<option value="${s}" ${item.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select><div><div style="font-weight:700;font-size:.9rem;line-height:1.35;${item.done ? 'text-decoration:line-through;color:var(--ink-faint)' : ''}">${escapeHtml(item.title || '关键节点')}</div>${item.status === '延期' ? `<div style="display:flex;gap:6px;align-items:center;margin-top:5px"><span class="text-xs text-faint">延到</span><input type="date" class="app-input" style="padding:5px 7px;font-size:.78rem;max-width:132px" value="${escapeHtml(item.delayedUntil || '')}" onchange="MODULES.progress.updateKeyDate('${phase.id}','${item.id}','delayedUntil',this.value)"></div>` : ''}${item.note && item.note !== '待排期' ? `<div class="text-xs text-faint" style="margin-top:4px">${escapeHtml(item.note)}</div>` : ''}</div></div>`).join('')}</div>`;
+    return `<div style="display:grid;gap:10px">${dates.map(item => `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px dashed var(--border-light)"><div><div style="font-weight:800;font-size:.92rem;line-height:1.4;${item.done ? 'text-decoration:line-through;color:var(--ink-faint)' : ''}">${escapeHtml(item.title || '关键节点')}</div><div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:6px"><select class="app-input app-select badge ${statusClass(item.status)}" style="width:auto;min-width:76px;padding:4px 8px;font-size:.76rem;font-weight:800;border:0" onchange="MODULES.progress.updateKeyDate('${phase.id}','${item.id}','status',this.value)">${['待办','进行中','已完成','延期'].map(s => `<option value="${s}" ${item.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>${item.status === '延期' ? `<span class="text-xs text-faint">延到</span><input type="date" class="app-input" style="padding:5px 7px;font-size:.76rem;max-width:128px" value="${escapeHtml(item.delayedUntil || '')}" onchange="MODULES.progress.updateKeyDate('${phase.id}','${item.id}','delayedUntil',this.value)">` : ''}${item.note && item.note !== '待排期' ? `<span class="text-xs text-faint">${escapeHtml(item.note)}</span>` : ''}</div></div><input type="date" class="app-input" style="padding:6px 8px;font-size:.8rem;max-width:128px" value="${escapeHtml(item.date || '')}" onchange="MODULES.progress.updateKeyDate('${phase.id}','${item.id}','date',this.value)"></div>`).join('')}</div>`;
   }
   function getCommunicationTodosForPhase(phase) {
     const comm = App.getData('communications') || { records: [] };

@@ -3935,6 +3935,10 @@ window.addEventListener('DOMContentLoaded', () => {
       el.dataset.todoIndex = i;
       const removeBtn = el.querySelector('button[onclick^="window.commRemoveTodo"]');
       if (removeBtn) removeBtn.setAttribute('onclick', `window.commRemoveTodo(${i})`);
+      const doneInput = el.querySelector('.comm-todo-done');
+      if (doneInput) doneInput.setAttribute('onchange', `window.commSyncTodoDone(${i}, this.checked)`);
+      const statusSelect = el.querySelector('.comm-todo-status');
+      if (statusSelect) statusSelect.setAttribute('onchange', `window.commSyncTodoStatus(${i}, this.value)`);
     });
   }
 

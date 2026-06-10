@@ -3282,7 +3282,7 @@ window.addEventListener('DOMContentLoaded', () => {
     return { materials, budgetItems, payments, planned, actual, photos: phasePhotos(phase), documents, communications, todos };
   }
   function normalizeKeyDate(item, idx) {
-    if (typeof item === 'string') return { id: `kd_${idx + 1}`, date: '', title: item, note: '待排期', status: '待办', delayedUntil: '', done: false };
+    if (typeof item === 'string') return { id: `kd_${idx + 1}`, date: '', title: item, note: '', status: '待办', delayedUntil: '', done: false };
     const done = !!item.done || item.status === '已完成';
     return { id: item.id || `kd_${idx + 1}`, date: item.date || '', title: item.title || '关键节点', note: item.note || '', status: item.status || (done ? '已完成' : '待办'), delayedUntil: item.delayedUntil || '', done };
   }
@@ -3302,12 +3302,12 @@ window.addEventListener('DOMContentLoaded', () => {
     const dates = phaseKeyDates(phase);
     if (!dates.length) return '<div class="text-xs text-faint">还没有关键时间点，点右上角添加。</div>';
     const badgeClass = status => status === '已完成' ? 'badge-green' : status === '延期' ? 'badge-red' : status === '进行中' ? 'badge-blue' : 'badge-gray';
-    return `<div style="display:grid;gap:9px">${dates.map(item => `<div style="display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center;padding:9px 0;border-bottom:1px dashed var(--border-light)"><strong style="font-family:Fraunces,serif;color:var(--blue);font-size:1.05rem">${escapeHtml(item.date ? item.date.slice(5) : '待排')}</strong><div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="badge ${badgeClass(item.status)}">${escapeHtml(item.status || '待办')}</span>${item.status === '延期' && item.delayedUntil ? `<span class="badge badge-yellow">延到 ${escapeHtml(item.delayedUntil.slice(5))}</span>` : ''}<span style="font-weight:700;font-size:.84rem;${item.done ? 'text-decoration:line-through;color:var(--ink-faint)' : ''}">${escapeHtml(item.title || '关键节点')}</span></div><div class="text-xs text-faint">${escapeHtml(item.note || '需要确认具体时间')}</div></div></div>`).join('')}</div>`;
+    return `<div style="display:grid;gap:9px">${dates.map(item => `<div style="display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center;padding:9px 0;border-bottom:1px dashed var(--border-light)"><strong style="font-family:Fraunces,serif;color:var(--blue);font-size:1.05rem">${escapeHtml(item.date ? item.date.slice(5) : '待排')}</strong><div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="badge ${badgeClass(item.status)}">${escapeHtml(item.status || '待办')}</span>${item.status === '延期' && item.delayedUntil ? `<span class="badge badge-yellow">延到 ${escapeHtml(item.delayedUntil.slice(5))}</span>` : ''}<span style="font-weight:700;font-size:.84rem;${item.done ? 'text-decoration:line-through;color:var(--ink-faint)' : ''}">${escapeHtml(item.title || '关键节点')}</span></div>${item.note && item.note !== '待排期' ? `<div class="text-xs text-faint">${escapeHtml(item.note)}</div>` : ''}</div></div>`).join('')}</div>`;
   }
   function renderTaskList(phase) {
     const list = phase.tasks || [];
     if (!list.length) return '<div class="text-xs text-faint">还没有待办，点右上角添加。</div>';
-    return `<div style="display:grid;gap:8px">${list.map(item => `<label style="display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start;padding:9px;border-radius:10px;background:#fff;cursor:pointer"><input type="checkbox" ${item.done ? 'checked' : ''} onchange="MODULES.progress.toggleNode('${phase.id}','tasks','${item.id}')"><span style="font-size:.84rem;line-height:1.45;${item.done ? 'text-decoration:line-through;color:var(--ink-faint)' : ''}">${escapeHtml(item.title)}</span></label>`).join('')}</div>`;
+    return `<div style="display:grid;gap:8px">${list.map(item => `<label style="display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start;padding:4px 0;cursor:pointer"><input type="checkbox" ${item.done ? 'checked' : ''} onchange="MODULES.progress.toggleNode('${phase.id}','tasks','${item.id}')"><span style="font-size:.84rem;line-height:1.45;${item.done ? 'text-decoration:line-through;color:var(--ink-faint)' : ''}">${escapeHtml(item.title)}</span></label>`).join('')}</div>`;
   }
   function renderRecordLinks(signals) {
     const items = [];

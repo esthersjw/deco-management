@@ -3828,33 +3828,31 @@ window.addEventListener('DOMContentLoaded', () => {
     const phaseId = t.phaseId || inheritedPhaseId || '';
     const status = t.status || '待办';
     const isDone = status === '已完成';
+    const tagBase = 'height:28px;border-radius:999px;border:1px solid var(--border-light);padding:0 8px;font-size:0.76rem;font-weight:700;line-height:1;background:#fff;color:var(--ink-light);cursor:pointer;max-width:128px';
     return `
       <div style="margin-bottom:8px;padding:10px;border:1px solid var(--border-light);border-radius:var(--radius-sm);background:var(--cream)" data-todo-index="${index}">
         <input type="hidden" class="comm-todo-id" value="${escapeHtml(t.id || '')}">
-        <div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center">
-          <input type="checkbox" class="comm-todo-done" ${isDone ? 'checked' : ''} onchange="window.commSyncTodoDone(${index}, this.checked)" style="width:18px;height:18px;accent-color:var(--blue)">
-          <input type="text" class="app-input comm-todo-content" value="${escapeHtml(t.content || '')}" placeholder="待办内容..." style="background:transparent;border-color:transparent;padding:6px 0;font-weight:600">
-          <button type="button" class="btn btn-sm btn-secondary" onclick="window.commToggleTodoDetails(${index})" style="height:28px;padding:0 10px;font-size:0.75rem">详情</button>
-        </div>
-        <div class="comm-todo-details" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-light)">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <select class="app-input app-select comm-todo-assignee">
-              ${users.map(u => `<option value="${u.id}" ${(t.assignee || getCurrentUser().id) === u.id ? 'selected' : ''}>${u.avatar || ''} ${escapeHtml(u.name)}</option>`).join('')}
-            </select>
-            <input type="date" class="app-input comm-todo-deadline" value="${t.deadline || ''}">
+        <div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start">
+          <input type="checkbox" class="comm-todo-done" ${isDone ? 'checked' : ''} onchange="window.commSyncTodoDone(${index}, this.checked)" style="width:18px;height:18px;accent-color:var(--blue);margin-top:7px">
+          <div>
+            <input type="text" class="app-input comm-todo-content" value="${escapeHtml(t.content || '')}" placeholder="待办内容..." style="width:100%;background:transparent;border-color:transparent;padding:4px 0 6px;font-weight:700;font-size:0.88rem;${isDone ? 'text-decoration:line-through;color:var(--ink-faint)' : ''}">
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+              <select class="comm-todo-assignee" title="负责人" style="${tagBase};background:rgba(43,127,216,.10);border-color:rgba(43,127,216,.24);color:var(--blue)">
+                ${users.map(u => `<option value="${u.id}" ${(t.assignee || getCurrentUser().id) === u.id ? 'selected' : ''}>${u.avatar || ''} ${escapeHtml(u.name)}</option>`).join('')}
+              </select>
+              <input type="date" class="comm-todo-deadline" title="截止日期" value="${t.deadline || ''}" style="${tagBase};background:rgba(244,215,88,.25);border-color:rgba(244,215,88,.65);color:#6f5c12">
+              <select class="comm-todo-status" title="状态" onchange="window.commSyncTodoStatus(${index}, this.value)" style="${tagBase}">
+                <option value="待办" ${status === '待办' ? 'selected' : ''}>待办</option>
+                <option value="已完成" ${status === '已完成' ? 'selected' : ''}>已完成</option>
+                <option value="逾期" ${status === '逾期' ? 'selected' : ''}>逾期</option>
+              </select>
+              <select class="comm-todo-phase" title="关联阶段" style="${tagBase}">
+                <option value="">继承阶段</option>
+                ${phases.map(p => `<option value="${p.id}" ${phaseId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+              </select>
+            </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center">
-            <select class="app-input app-select comm-todo-status">
-              <option value="待办" ${status === '待办' ? 'selected' : ''}>待办</option>
-              <option value="已完成" ${status === '已完成' ? 'selected' : ''}>已完成</option>
-              <option value="逾期" ${status === '逾期' ? 'selected' : ''}>逾期</option>
-            </select>
-            <select class="app-input app-select comm-todo-phase" title="关联阶段">
-              <option value="">继承沟通阶段</option>
-              ${phases.map(p => `<option value="${p.id}" ${phaseId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
-            </select>
-            <button type="button" class="btn btn-sm btn-danger" onclick="window.commRemoveTodo(${index})" style="height:34px;padding:0 10px;font-size:0.75rem">删除</button>
-          </div>
+          <button type="button" class="btn-icon" onclick="window.commRemoveTodo(${index})" title="删除" style="margin-top:3px">×</button>
         </div>
       </div>
     `;
@@ -3917,16 +3915,16 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function toggleTodoDetails(index) {
-    const row = document.querySelector(`#commTodosList [data-todo-index="${index}"]`);
-    const details = row ? row.querySelector('.comm-todo-details') : null;
-    if (details) details.style.display = details.style.display === 'none' ? 'block' : 'none';
-  }
-
   function syncTodoDone(index, checked) {
     const row = document.querySelector(`#commTodosList [data-todo-index="${index}"]`);
     const status = row ? row.querySelector('.comm-todo-status') : null;
     if (status) status.value = checked ? '已完成' : '待办';
+  }
+
+  function syncTodoStatus(index, value) {
+    const row = document.querySelector(`#commTodosList [data-todo-index="${index}"]`);
+    const checkbox = row ? row.querySelector('.comm-todo-done') : null;
+    if (checkbox) checkbox.checked = value === '已完成';
   }
 
   function removeTodo(index) {
@@ -3937,8 +3935,6 @@ window.addEventListener('DOMContentLoaded', () => {
       el.dataset.todoIndex = i;
       const removeBtn = el.querySelector('button[onclick^="window.commRemoveTodo"]');
       if (removeBtn) removeBtn.setAttribute('onclick', `window.commRemoveTodo(${i})`);
-      const detailsBtn = el.querySelector('button[onclick^="window.commToggleTodoDetails"]');
-      if (detailsBtn) detailsBtn.setAttribute('onclick', `window.commToggleTodoDetails(${i})`);
     });
   }
 
@@ -4157,8 +4153,8 @@ window.addEventListener('DOMContentLoaded', () => {
   window.commRemoveDecision = removeDecision;
   window.commAddTodo = addTodo;
   window.commHandleQuickTodoKey = handleQuickTodoKey;
-  window.commToggleTodoDetails = toggleTodoDetails;
   window.commSyncTodoDone = syncTodoDone;
+  window.commSyncTodoStatus = syncTodoStatus;
   window.commRemoveTodo = removeTodo;
   window.commAddConcern = addConcern;
   window.commRemoveConcern = removeConcern;

@@ -1611,7 +1611,7 @@ window.addEventListener('DOMContentLoaded', () => {
           totalTodos++;
           if (overdue) overdueTodos++;
           const linkedPhase = phases.find(p => p.id === (t.phaseId || r.phaseId));
-          allTodos.push({ ...t, recordId: r.id, sourceType: 'communication', title: t.content, phaseName: linkedPhase ? displayPhaseName(linkedPhase.name) : '', recordTitle: r.title, recordDate: r.date, overdue });
+          allTodos.push({ ...t, recordId: t.sourceId || r.id, sourceType: 'communication', title: t.content, phaseName: linkedPhase ? displayPhaseName(linkedPhase.name) : '', recordTitle: r.title, recordDate: r.date, overdue });
         }
       });
     });
@@ -3341,7 +3341,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   function getCommunicationTodosForPhase(phase) {
     const comm = App.getData('communications') || { records: [] };
-    return (comm.records || []).flatMap(record => (record.todos || []).filter(todo => todo.phaseId === phase.id || (!todo.phaseId && record.phaseId === phase.id)).map(todo => ({ ...todo, recordId: record.id, recordTitle: record.title || '沟通记录' })));
+    return (comm.records || []).flatMap(record => (record.todos || []).filter(todo => todo.phaseId === phase.id || (!todo.phaseId && record.phaseId === phase.id)).map(todo => ({ ...todo, recordId: todo.sourceId || record.id, recordTitle: record.title || '沟通记录' })));
   }
   function renderTaskList(phase) {
     const phaseTasks = phase.tasks || [];
@@ -3561,7 +3561,24 @@ window.addEventListener('DOMContentLoaded', () => {
     return progress?.currentPhaseId || (progress?.phases || []).find(p => p.status === '进行中')?.id || '';
   }
 
+  function normalizeTodoLinks() {
+    let changed = false;
+    (data.records || []).forEach(record => {
+      (record.todos || []).forEach(todo => {
+        if (!todo.id) { todo.id = generateId('todo'); changed = true; }
+        if (!todo.sourceType) { todo.sourceType = 'communication'; changed = true; }
+        if (!todo.sourceId) { todo.sourceId = record.id; changed = true; }
+        if (!todo.phaseId && record.phaseId) { todo.phaseId = record.phaseId; changed = true; }
+        if (!todo.status) { todo.status = '待办'; changed = true; }
+        if (todo.status === '已完成' && !todo.completedAt) { todo.completedAt = new Date().toISOString(); changed = true; }
+        if (todo.status !== '已完成' && todo.completedAt) { todo.completedAt = null; changed = true; }
+      });
+    });
+    return changed;
+  }
+
   function saveData() {
+    normalizeTodoLinks();
     data.updatedAt = new Date().toISOString();
     if (window.App) App.setData('communications', data);
   }
@@ -3940,6 +3957,8 @@ window.addEventListener('DOMContentLoaded', () => {
       if (input && input.value.trim()) keyDecisions.push(input.value.trim());
     });
 
+    const recordId = editingRecordId || generateId('comm');
+
     // Collect todos
     const todos = [];
     document.querySelectorAll('#commTodosList [data-todo-index]').forEach(el => {
@@ -3959,6 +3978,7 @@ window.addEventListener('DOMContentLoaded', () => {
           status: todoStatus,
           phaseId: todoPhaseId || phaseId || null,
           sourceType: 'communication',
+          sourceId: recordId,
           completedAt: todoStatus === '已完成' ? (new Date().toISOString()) : null
         };
         // If already completed and has completedAt, preserve it
@@ -3983,7 +4003,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const participants = participantsStr ? participantsStr.split(/[,，、]/).map(s => s.trim()).filter(Boolean) : [];
 
     const record = {
-      id: editingRecordId || generateId('comm'),
+      id: recordId,
       date,
       author,
       participants,
@@ -4110,10 +4130,13 @@ window.addEventListener('DOMContentLoaded', () => {
     },
     onShow() {
       // Refresh phases data when shown in case progress module updated
+      const changed = normalizeTodoLinks();
+      if (changed) saveData();
       render();
     },
     setData(d) {
       data = d || { version: '1.0', updatedAt: new Date().toISOString(), records: [] };
+      normalizeTodoLinks();
     }
   });
 })();
